@@ -1,0 +1,2 @@
+
+# Componentes específicos del layout

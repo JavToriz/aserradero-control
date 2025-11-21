@@ -1,0 +1,532 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =================================================================
+// SECCIÓN 1: AUTENTICACIÓN Y GESTIÓN DE ASERRADEROS
+// =================================================================
+
+model Aserradero {
+  id_aserradero Int    @id @default(autoincrement())
+  nombre        String @unique
+  direccion     String?
+  telefono      String?
+  fecha_creacion DateTime @default(now())
+
+  usuarios_predeterminados Usuario[]           @relation("AserraderoPredeterminado")
+  usuarios_asignados       UsuarioAserradero[]
+  productos_catalogo                ProductoCatalogo[]
+  personas                 Persona[]
+  stock_producto_terminado  StockProductoTerminado[]
+  ordenes_aserrado          OrdenAserrado[]
+  movimientos_inventario    MovimientoInventario[]
+  remisiones                Remision[]
+  reembarques               Reembarque[]
+  notas_venta               NotaVenta[]
+  detalles_nota_venta       DetalleNotaVenta[]
+  turnos_caja               TurnoCaja[]
+  recibos_gasto             ReciboGasto[]
+  arrivos_inventario        ArrivoInventario[]
+  ajustes_inventario        AjusteInventario[]
+  vehiculos                 Vehiculo[]  @relation("AserraderoVehiculos")
+  predios                   Predio[]  @relation("AserraderoPredios")
+}
+
+model Rol {
+  id_rol     Int           @id @default(autoincrement())
+  nombre_rol String        @unique
+  usuarios   UsuarioRol[]
+}
+
+model Usuario {
+  id_usuario            Int      @id @default(autoincrement())
+  id_aserradero_predeterminado Int?
+  nombre_usuario        String   @unique
+  hash_contrasena       String
+  nombre_completo       String?
+  activo                Boolean  @default(true)
+  fecha_creacion        DateTime @default(now())
+
+  aserradero_predeterminado Aserradero?         @relation("AserraderoPredeterminado", fields: [id_aserradero_predeterminado], references: [id_aserradero])
+  aserraderos_asignados     UsuarioAserradero[]
+  roles                     UsuarioRol[]
+  turnos_apertura       TurnoCaja[]         @relation("AperturaUsuario")
+  turnos_cierre         TurnoCaja[]         @relation("CierreUsuario")
+  ventas                    NotaVenta[]
+  ordenes_aserrado_responsable OrdenAserrado[]
+  movimientos_inventario_responsable MovimientoInventario[]
+  recibos_gasto_responsable  ReciboGasto[] @relation("ResponsableGasto")
+  ajustes_inventario_realizados AjusteInventario[]
+}
+
+// Tabla intermedia para asignar usuarios a aserraderos (Muchos a Muchos)
+model UsuarioAserradero {
+  id_usuario    Int
+  id_aserradero Int
+
+  usuario    Usuario    @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  aserradero Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+
+  @@id([id_usuario, id_aserradero])
+}
+
+// Tabla intermedia para asignar roles a usuarios (Muchos a Muchos)
+model UsuarioRol {
+  id_usuario Int
+  id_rol     Int
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  rol     Rol     @relation(fields: [id_rol], references: [id_rol], onDelete: Cascade)
+
+  @@id([id_usuario, id_rol])
+}
+
+// =================================================================
+// SECCIÓN 2: PRODUCTOS E INVENTARIO
+// =================================================================
+
+model ProductoCatalogo {
+  id_producto_catalogo      Int      @id @default(autoincrement())
+  id_aserradero    Int
+  sku              String?  
+  descripcion      String
+  tipo_categoria   String // 'MADERA_ASERRADA' o 'TRIPLAY_AGLOMERADO'
+  unidad_medida    String? // 'Pieza', 'Pie tablar', 'm3'
+  precio_venta     Decimal
+  precio_compra    Decimal?
+  activo           Boolean  @default(true)
+  
+  aserradero       Aserradero @relation(fields: [id_aserradero], references: [id_aserradero])
+  atributos_madera AtributosMadera?
+  atributos_triplay AtributosTriplay?
+  stock_items      StockProductoTerminado[]
+  arrivos          ArrivoInventario[]
+  detalles_venta   DetalleNotaVenta[]
+  ajustes_inventario AjusteInventario[] 
+  @@unique([id_producto_catalogo, id_aserradero])
+  @@unique([sku, id_aserradero], name: "sku_unico_por_aserradero")
+}
+
+model AtributosMadera {
+  id_producto_catalogo     Int     @id
+  genero          String?
+  tipo            String?
+  clasificacion   String?
+  ancho_pulgadas  Decimal?
+  grosor_pulgadas Decimal?
+  largo_pies      Decimal?
+
+  producto ProductoCatalogo @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Cascade)
+}
+
+model AtributosTriplay {
+  id_producto_catalogo Int     @id
+  genero      String?
+  procedencia String?
+  tipo        String?
+  espesor_mm  Decimal?
+  largo_ft    Decimal?
+  ancho_ft    Decimal?
+
+  producto ProductoCatalogo @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Cascade)
+}
+
+model ArrivoInventario {
+  id_arrivo               Int       @id @default(autoincrement())
+  id_aserradero           Int
+  id_producto_catalogo             Int
+  cantidad_esperada       Decimal
+  proveedor               String?
+  fecha_estimada_llegada  DateTime?
+  estado                  String    @default("PENDIENTE")
+  fecha_creacion          DateTime  @default(now())
+  fecha_recepcion         DateTime?
+
+  aserradero Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  producto   ProductoCatalogo   @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Cascade)
+}
+
+model OrdenAserrado {
+  id_orden_aserrado       Int      @id @default(autoincrement())
+  id_aserradero           Int
+  fecha_aserrado          DateTime @db.Date
+  id_responsable_usuario  Int
+  especie                 String   // Se mantiene aquí para registrar qué tipo de rollo se usó
+  total_m3_rollo_consumido Decimal
+  observaciones           String?
+
+  aserradero Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  responsable Usuario @relation(fields: [id_responsable_usuario], references: [id_usuario], onDelete: Restrict)
+  stock_generado StockProductoTerminado[]
+}
+
+model StockProductoTerminado {
+  id_stock                  Int       @id @default(autoincrement())
+  id_aserradero             Int
+  id_producto_catalogo      Int
+  id_orden_aserrado_origen  Int?
+  piezas_actuales           Int
+  ubicacion                 UbicacionInventario
+  fecha_ingreso             DateTime  @db.Date
+  
+  aserradero Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  producto   ProductoCatalogo @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Restrict)
+  orden_origen OrdenAserrado? @relation(fields: [id_orden_aserrado_origen], references: [id_orden_aserrado], onDelete: SetNull)
+  movimientos MovimientoInventario[]
+}
+
+model MovimientoInventario {
+  id_movimiento       Int      @id @default(autoincrement())
+  id_aserradero       Int
+  id_stock_afectado   Int
+  id_responsable_usuario Int
+  fecha_movimiento    DateTime
+  piezas_movidas      Int
+  ubicacion_origen    UbicacionInventario?
+  ubicacion_destino   UbicacionInventario?
+  id_nota_venta_salida Int?
+  
+  aserradero    Aserradero             @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  stock_item    StockProductoTerminado @relation(fields: [id_stock_afectado], references: [id_stock], onDelete: Cascade)
+  responsable   Usuario                @relation(fields: [id_responsable_usuario], references: [id_usuario], onDelete: Restrict)
+  nota_venta    NotaVenta?             @relation(fields: [id_nota_venta_salida], references: [id_nota_venta])
+}
+
+
+
+// =================================================================
+// SECCIÓN 3: PERSONAS Y VEHÍCULOS
+// =================================================================
+
+model Persona {
+  id_persona            Int      @id @default(autoincrement())
+  id_aserradero         Int      // <-- NUEVO: Enlace al Aserradero
+  nombre_completo       String
+  rfc                   String?  // @unique eliminado, se maneja abajo
+  curp                  String?  // @unique eliminado, se maneja abajo
+  telefono              String?
+  domicilio_calle       String?
+  domicilio_poblacion   String?
+  domicilio_municipio   String?
+  domicilio_entidad     String?
+  
+  // Relaciones
+  aserradero              Aserradero         @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade) // <-- NUEVO: Relación
+  notas_venta             NotaVenta[]        @relation("ClienteNotaVenta")
+  recibos_gasto_beneficiario ReciboGasto[]   @relation("BeneficiarioGasto")
+  remisiones_titular      Remision[]         @relation("TitularRemision")
+  remisiones_remitente    Remision[]         @relation("RemitenteRemision")
+  remisiones_destinatario Remision[]         @relation("DestinatarioRemision")
+  remisiones_chofer       Remision[]         @relation("ChoferRemision")
+  reembarques_remitente   Reembarque[]       @relation("RemitenteReembarque")
+  reembarques_destinatario Reembarque[]      @relation("DestinatarioReembarque")
+  reembarques_chofer      Reembarque[]       @relation("ChoferReembarque")
+  credito                 Credito?
+
+  // --> NUEVO: Restricciones de unicidad compuestas
+  @@unique([id_aserradero, rfc], name: "rfc_unico_por_aserradero")
+  @@unique([id_aserradero, curp], name: "curp_unico_por_aserradero")
+}
+
+
+model Vehiculo {
+  id_vehiculo               Int      @id @default(autoincrement())
+  id_aserradero             Int
+  propietario               String?
+  marca                     String?
+  tipo                      String?
+  modelo                    String?
+  capacidad_carga_toneladas Decimal?
+  matricula                 String   
+
+  //cliente Cliente? @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull)
+  // Relaciones con documentos de transporte
+  remisiones              Remision[]
+  reembarques             Reembarque[]
+  notas_venta            NotaVenta[]
+  aserradero              Aserradero @relation("AserraderoVehiculos", fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+
+  // La matrícula debe ser única POR aserradero, no global
+  @@unique([id_aserradero, matricula], name: "matricula_unica_por_aserradero")
+}
+
+model Predio {
+  id_predio       Int        @id @default(autoincrement())
+  id_aserradero   Int
+  clave_rfn       String?    
+  nombre_predio   String?
+  municipio       String?
+  entidad         String?
+  
+  remisiones      Remision[]
+  aserradero      Aserradero @relation("AserraderoPredios", fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+
+  // La clave RFN debe ser única POR aserradero
+  @@unique([id_aserradero, clave_rfn], name: "rfn_unico_por_aserradero")
+}
+
+// =================================================================
+// SECCIÓN : DOCUMENTOS (ENTRADAS Y SALIDAS)
+// =================================================================
+model Remision {
+  id_remision                 Int       @id @default(autoincrement())
+  id_aserradero               Int
+  folio_progresivo            String    @unique
+  folio_autorizado            String?
+  fecha_emision               DateTime?
+  id_titular                  Int?      // FK a Persona
+  id_predio_origen            Int?      // FK a Predio
+  id_remitente                Int?      // FK a Persona
+  id_destinatario             Int?      // FK a Persona
+  descripcion_producto_remision String?
+  genero_madera               String?
+  id_vehiculo                 Int?      // FK a Vehiculo
+  id_chofer                   Int?      // FK a Persona
+
+  cantidad_amparada           Decimal?  @db.Decimal(12, 4)
+  saldo_disponible_anterior   Decimal?  @db.Decimal(12, 4)
+  saldo_restante              Decimal?  @db.Decimal(12, 4)
+  numero_piezas               Int?
+  volumen_total_m3            Decimal?  @db.Decimal(12, 4)
+  m3_recibidos_aserradero     Decimal?  @db.Decimal(12, 4)
+  m3_consumidos_produccion    Decimal   @default(0) @db.Decimal(12, 4)
+
+  aserradero     Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  titular        Persona?   @relation("TitularRemision", fields: [id_titular], references: [id_persona], onDelete: SetNull)
+  predio_origen  Predio?    @relation(fields: [id_predio_origen], references: [id_predio], onDelete: SetNull)
+  remitente      Persona?   @relation("RemitenteRemision", fields: [id_remitente], references: [id_persona], onDelete: SetNull)
+  destinatario   Persona?   @relation("DestinatarioRemision", fields: [id_destinatario], references: [id_persona], onDelete: SetNull)
+  vehiculo       Vehiculo?  @relation(fields: [id_vehiculo], references: [id_vehiculo], onDelete: SetNull)
+  chofer         Persona?   @relation("ChoferRemision", fields: [id_chofer], references: [id_persona], onDelete: SetNull)
+
+  @@index([id_aserradero, fecha_emision])
+}
+
+model Reembarque {
+  id_reembarque             Int      @id @default(autoincrement())
+  id_aserradero             Int
+  folio_progresivo          String   @unique
+  folio_autorizado          String?
+  fecha_emision             DateTime?
+  fecha_vencimiento         DateTime? @db.Date
+
+  id_documento_origen     Int?
+  tipo_documento_origen   DocumentoOrigen?
+
+  id_remitente              Int?      // FK a Persona
+  id_destinatario           Int?      // FK a Persona
+  descripcion_producto_reembarque String?
+  genero_madera             String?
+  id_vehiculo               Int?      // FK a Vehiculo
+  id_chofer                 Int?      // FK a Persona
+
+  cantidad_amparada         Decimal? @db.Decimal(12, 4)
+  saldo_disponible_anterior Decimal? @db.Decimal(12, 4)
+  saldo_restante            Decimal? @db.Decimal(12, 4)
+  volumen_total_m3          Decimal? @db.Decimal(12, 4)
+
+  aserradero   Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  remitente    Persona?   @relation("RemitenteReembarque", fields: [id_remitente], references: [id_persona], onDelete: SetNull)
+  destinatario Persona?   @relation("DestinatarioReembarque", fields: [id_destinatario], references: [id_persona], onDelete: SetNull)
+  vehiculo     Vehiculo?  @relation(fields: [id_vehiculo], references: [id_vehiculo], onDelete: SetNull)
+  chofer       Persona?   @relation("ChoferReembarque", fields: [id_chofer], references: [id_persona], onDelete: SetNull)
+
+  @@index([id_aserradero, fecha_emision])
+}
+
+// =================================================================
+// SECCIÓN 4: OPERACIONES (VENTAS Y CRÉDITOS)
+// =================================================================
+
+model NotaVenta {
+  id_nota_venta     Int      @id @default(autoincrement())
+  id_aserradero     Int
+  id_turno          Int?
+  folio_nota        String
+  fecha_salida      DateTime @default(now()) // <-- Mejor default now
+  id_cliente        Int
+  total_venta       Decimal  @db.Decimal(12, 2)
+  tipo_pago         String
+  pagado            Boolean  @default(false) // estado de pago
+
+//// No se si utilizaré estos campos de abajo pero los dejo por si acaso
+  id_usuario        Int
+  id_vehiculo       Int?
+  impuestos         Decimal?  @default(0.00)
+  //total             Decimal
+  //tipo_pago         String
+
+  aserradero Aserradero     @relation(fields: [id_aserradero], references: [id_aserradero])
+  cliente    Persona        @relation("ClienteNotaVenta", fields: [id_cliente], references: [id_persona], onDelete: Restrict)
+  turno      TurnoCaja?     @relation(fields: [id_turno], references: [id_turno], onDelete: SetNull)
+  usuario    Usuario        @relation(fields: [id_usuario], references: [id_usuario])
+  vehiculo   Vehiculo?      @relation(fields: [id_vehiculo], references: [id_vehiculo])
+  detalles   DetalleNotaVenta[]
+  movimientos MovimientoInventario[] 
+  movimientos_caja MovimientoCaja[]
+
+  @@index([id_aserradero, fecha_salida])
+}
+
+model DetalleNotaVenta {
+  id_detalle_nota        Int      @id @default(autoincrement())
+  id_aserradero          Int
+  id_nota_venta          Int
+  id_producto_catalogo   Int
+  cantidad_piezas        Int
+  precio_unitario_venta  Decimal  @db.Decimal(10, 2)
+  importe_linea          Decimal  @db.Decimal(12, 2)
+  
+  aserradero Aserradero       @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: NoAction)
+  nota_venta NotaVenta        @relation(fields: [id_nota_venta], references: [id_nota_venta], onDelete: Cascade)
+  producto   ProductoCatalogo @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Restrict)
+
+  @@index([id_nota_venta])
+  @@index([id_producto_catalogo])
+}
+
+model Credito {
+  id_credito        Int      @id @default(autoincrement())
+  id_persona        Int      @unique
+  monto_total_deuda Decimal  @default(0.00)
+  saldo_pendiente   Decimal  @default(0.00)
+  estado            String   @default("ACTIVO")
+
+  cliente Persona        @relation(fields: [id_persona], references: [id_persona], onDelete: Cascade)
+  abonos  AbonoCredito[]
+}
+
+model AbonoCredito {
+  id_abono      Int      @id @default(autoincrement())
+  id_credito    Int
+  id_nota_venta Int?
+  fecha_abono   DateTime @default(now())
+  monto_abonado Decimal
+  metodo_pago   String?
+
+  credito Credito @relation(fields: [id_credito], references: [id_credito])
+}
+
+
+// =================================================================
+// SECCIÓN 5: GESTIÓN DE CAJA
+// =================================================================
+
+model TurnoCaja {
+  id_turno                       Int      @id @default(autoincrement())
+  id_aserradero                  Int
+  id_usuario_apertura            Int
+  fecha_apertura                 DateTime @default(now())
+  fondo_inicial_efectivo         Decimal
+  id_usuario_cierre              Int?
+  fecha_cierre                   DateTime?
+  monto_final_contado            Decimal?
+  total_ventas_efectivo_calculado Decimal?
+  total_gastos_calculado         Decimal?
+  diferencia                     Decimal?
+
+  aserradero       Aserradero       @relation(fields: [id_aserradero], references: [id_aserradero])
+  usuario_apertura Usuario          @relation("AperturaUsuario", fields: [id_usuario_apertura], references: [id_usuario])
+  usuario_cierre   Usuario?         @relation("CierreUsuario", fields: [id_usuario_cierre], references: [id_usuario])
+
+  movimientos      MovimientoCaja[]
+  recibos_gasto    ReciboGasto[]
+  notas_venta      NotaVenta[]
+}
+
+model MovimientoCaja {
+  id_movimiento   Int      @id @default(autoincrement())
+  id_turno        Int
+  id_nota_venta        Int?
+  tipo_movimiento String
+  monto           Decimal
+  descripcion     String?
+  fecha_movimiento DateTime @default(now())
+
+  turno TurnoCaja @relation(fields: [id_turno], references: [id_turno])
+  venta NotaVenta?    @relation(fields: [id_nota_venta], references: [id_nota_venta], onDelete: SetNull)
+}
+
+model ReciboGasto {
+  id_recibo_gasto         Int      @id @default(autoincrement())
+  id_aserradero           Int
+  id_turno                Int?
+  folio_recibo            String?
+  fecha_emision           DateTime @db.Date
+  id_beneficiario         Int      
+  id_responsable_usuario  Int      
+  monto                   Decimal  @db.Decimal(12, 2)
+  monto_letra             String
+  concepto_general        String
+  concepto_detalle        String?
+  documento_asociado_id   Int?
+  documento_asociado_tipo String?
+
+  aserradero           Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  turno                TurnoCaja? @relation(fields: [id_turno], references: [id_turno], onDelete: SetNull)
+  beneficiario         Persona    @relation("BeneficiarioGasto", fields: [id_beneficiario], references: [id_persona], onDelete: Restrict)
+  responsable_entrega  Usuario    @relation("ResponsableGasto", fields: [id_responsable_usuario], references: [id_usuario], onDelete: Restrict)
+
+  @@index([id_aserradero, fecha_emision])
+}
+
+
+// =================================================================
+// SECCIÓN: AJUSTES DE INVENTARIO MANUAL
+// =================================================================
+
+// Actualización para manejar historial de ajuste de inventario
+
+model AjusteInventario {
+  id_ajuste      Int      @id @default(autoincrement())
+  id_aserradero        Int
+  id_producto_catalogo    Int
+  cantidad       Decimal  // Usaremos un número positivo para entradas y negativo para salidas
+  motivo         String?
+  fecha_ajuste   DateTime @default(now())
+  id_usuario     Int
+
+  aserradero Aserradero       @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
+  producto       ProductoCatalogo @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Cascade)
+  usuario        Usuario  @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@index([id_aserradero])
+  @@index([id_producto_catalogo])
+  @@index([id_usuario])
+  @@index([fecha_ajuste])
+}
+
+// =================================================================
+// ENUMS
+// =================================================================
+enum UbicacionInventario {
+  PRODUCCION
+  SECADO
+  BODEGA
+  ANAQUELES
+  VENTA
+}
+
+enum EstadoTurno {
+  ABIERTO
+  CERRADO
+}
+
+// --> NUEVO ENUM para tipo de documento origen en Reembarque
+enum DocumentoOrigen {
+  REMISION
+  REEMBARQUE
+}
