@@ -5,18 +5,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, Ban, Minus, Plus } from 'lucide-react';
 
-// Prop para el callback de éxito
 interface RegistrarConsumoFormProps {
   onSaveSuccess: (orden: any) => void;
 }
 
-// Opciones comunes de especies
 const ESPECIES_MADERA = ['Pino', 'Encino', 'Oyamel', 'Cedro', 'Roble', 'Otra'];
 
 export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProps) {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    fecha_aserrado: new Date().toISOString().split('T')[0], // Default a hoy
+    fecha_aserrado: new Date().toISOString().split('T')[0],
     especie: 'Pino',
     total_m3_rollo_consumido: 0,
     observaciones: '',
@@ -49,7 +47,6 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
         },
         body: JSON.stringify({
           ...formData,
-          // Convertimos el string a número por si acaso
           total_m3_rollo_consumido: parseFloat(formData.total_m3_rollo_consumido.toString()) 
         }),
       });
@@ -60,8 +57,7 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
         throw new Error(result.message || 'Error al guardar el consumo');
       }
 
-      // Éxito
-      alert('Consumo registrado con éxito.'); // Reemplazar con un toast
+      alert('Consumo registrado con éxito.'); 
       onSaveSuccess(result);
 
     } catch (err: any) {
@@ -76,7 +72,8 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      // Si el campo es numérico y el valor es vacío, guardamos 0 en el estado pero el input mostrará vacío
+      [name]: (name === 'total_m3_rollo_consumido' && value === '') ? 0 : value
     }));
   };
 
@@ -91,7 +88,6 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       
-      {/* Fila 1: Fecha y Especie */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Input 
           label="Fecha de Aserrado" 
@@ -114,7 +110,6 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
         </Select>
       </div>
 
-      {/* Fila 2: Total m³ (Diseño de "campo numérico claro y grande") */}
       <div className="text-center bg-gray-50 p-6 rounded-lg">
         <label htmlFor="total_m3_rollo_consumido" className="block text-sm font-medium text-gray-700 mb-2">
           Total de Metros Cúbicos (m³) en Rollo a Procesar
@@ -129,8 +124,10 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
             name="total_m3_rollo_consumido"
             type="number"
             step="0.01"
-            value={formData.total_m3_rollo_consumido}
+            // FIX UX: Si es 0, pasamos cadena vacía para que no se vea el "0"
+            value={formData.total_m3_rollo_consumido === 0 ? '' : formData.total_m3_rollo_consumido}
             onChange={handleChange}
+            placeholder="0"
             className="w-48 text-center text-4xl font-bold border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
@@ -141,7 +138,6 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
         </div>
       </div>
 
-      {/* Fila 3: Observaciones */}
       <div>
         <label htmlFor="observaciones" className="block text-sm font-medium text-gray-700 mb-1">
           Observaciones (Opcional)
@@ -157,8 +153,6 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
         />
       </div>
 
-
-      {/* BOTONES DE ACCIÓN */}
       <div className="border-t pt-6 flex justify-end gap-4">
         {error && <p className="text-red-600 text-sm my-auto mr-4">Error: {error}</p>}
         <button
@@ -182,9 +176,6 @@ export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProp
     </form>
   );
 }
-
-// --- Componentes de UI genéricos ---
-// (Puedes moverlos a @/components/ui/Input.tsx y Select.tsx)
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;

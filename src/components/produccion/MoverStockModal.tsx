@@ -1,30 +1,25 @@
 // components/produccion/MoverStockModal.tsx
 // V2: Ahora incluye un campo para la cantidad de piezas.
-
 import { useState, useEffect, useMemo } from 'react';
 import { ModalContainer } from '@/components/ui/ModalContainer';
 import { StockItem } from '@/app/(dashboard)/produccion/page';
 import { Save, Ban, Truck } from 'lucide-react';
-
 
 interface MoverStockModalProps {
   isOpen: boolean;
   onClose: () => void;
   onMoveSuccess: () => void;
   item: StockItem;
-  mode: 'full' | 'partial'; // <-- El modo decide la UI
+  mode: 'full' | 'partial';
 }
 
-// Opciones de Ubicación (Enum de tu schema)
 const UBICACIONES = ['PRODUCCION', 'SECADO', 'BODEGA', 'ANAQUELES'];
 
 export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: MoverStockModalProps) {
   
-  // --- CORRECCIÓN 2: Usar useMemo para estabilizar opcionesDestino ---
-  // Filtramos la ubicación actual para que no sea una opción de destino
   const opcionesDestino = useMemo(() => 
     UBICACIONES.filter(u => u !== item.ubicacion),
-    [item.ubicacion] // Solo se recalcula si la ubicación del item cambia
+    [item.ubicacion]
   );
   
   const [destino, setDestino] = useState(opcionesDestino[0] || '');
@@ -34,25 +29,27 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- CORRECCIÓN 3: Ajustar el useEffect para que se ejecute SÓLO al abrir ---
-  // Resetear el estado cuando el item cambia O cuando el modal se abre
   useEffect(() => {
-    // Solo reseteamos si isOpen es 'true'
     if (isOpen && item) {
-      // Siempre ponemos el total por defecto, 
-      // si el modo es 'full' se queda así, si es 'partial' el usuario lo cambia.
       setPiezasAMover(item.piezas_actuales); 
       setDestino(opcionesDestino[0] || '');
       setError(null);
       setValidationError('');
     }
-  }, [item, isOpen, opcionesDestino]); // 'opcionesDestino' es estable gracias a useMemo
+  }, [item, isOpen, opcionesDestino]);
 
   const getToken = () => localStorage.getItem('sessionToken');
 
-  // --- VALIDACIÓN EN TIEMPO REAL V2 (Esta lógica está bien) ---
   const handlePiezasChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const valor = parseInt(e.target.value, 10);
+    const valorStr = e.target.value;
+    // Si está vacío, permitimos que sea 0 internamente pero vacío en la UI
+    if (valorStr === '') {
+      setPiezasAMover(0);
+      setValidationError('');
+      return;
+    }
+
+    const valor = parseInt(valorStr, 10);
     setValidationError('');
 
     if (isNaN(valor) || valor < 0) {
@@ -74,10 +71,8 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
     setError(null);
     setValidationError('');
 
-    // Determinamos la cantidad final a mover basado en el modo
     const cantidadFinal = mode === 'full' ? item.piezas_actuales : piezasAMover;
 
-    // Validación final antes de enviar
     if (cantidadFinal <= 0) {
       setValidationError('La cantidad debe ser mayor a cero');
       setIsSaving(false);
@@ -87,7 +82,6 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
     const token = getToken();
 
     try {
-      // Usamos el endpoint que actualizamos: PUT /api/stock-producto-terminado/[id]/mover
       const response = await fetch(`/api/stock-producto-terminado/${item.id_stock}/mover`, {
         method: 'PUT',
         headers: {
@@ -96,14 +90,14 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
         },
         body: JSON.stringify({
           ubicacion_destino: destino,
-          piezas_a_mover: cantidadFinal, // <-- Enviamos la cantidad final
+          piezas_a_mover: cantidadFinal,
         }),
       });
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Error al mover el lote');
       
-      onMoveSuccess(); // Llama al callback para refrescar el Kanban
+      onMoveSuccess(); 
 
     } catch (err: any) {
       setError(err.message);
@@ -118,7 +112,6 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
     <ModalContainer isOpen={isOpen} onClose={onClose} title="Mover Lote de Stock">
       <form onSubmit={handleSubmit} className="p-4 space-y-6">
         
-        {/* Información del Lote a Mover */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <p className="text-sm text-gray-500">Moviendo Lote:</p>
           <p className="text-lg font-semibold text-gray-800">{item.producto.descripcion}</p>
@@ -130,10 +123,8 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
           </p>
         </div>
 
-        {/* --- LÓGICA CONDICIONAL V2 --- */}
         <div className={`grid grid-cols-1 ${mode === 'partial' ? 'md:grid-cols-2' : ''} gap-4`}>
           
-          {/* Si el modo es 'partial', muestra el input de cantidad */}
           {mode === 'partial' && (
             <div>
               <label htmlFor="piezasAMover" className="block text-sm font-medium text-gray-700 mb-1">
@@ -144,8 +135,10 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
                   id="piezasAMover"
                   name="piezasAMover"
                   type="number"
-                  value={piezasAMover}
+                  // UX FIX: Si es 0, se muestra vacío para escribir directo
+                  value={piezasAMover === 0 ? '' : piezasAMover}
                   onChange={handlePiezasChange}
+                  placeholder="0"
                   className={`w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${validationError ? 'border-red-500 ring-red-500' : 'border-gray-300 focus:ring-blue-500'}`}
                 />
                 <button
@@ -160,7 +153,6 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
             </div>
           )}
 
-          {/* Selector de Destino (ocupa todo el ancho si el modo es 'full') */}
           <div className={mode === 'full' ? 'md:col-span-2' : ''}>
             <label htmlFor="destino" className="block text-sm font-medium text-gray-700 mb-1">
               Mover a:
@@ -179,7 +171,6 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
           </div>
         </div>
 
-        {/* Botones de Acción */}
         <div className="border-t pt-4 flex justify-end gap-4">
           {error && <p className="text-red-600 text-sm my-auto mr-4">Error: {error}</p>}
           <button
@@ -197,7 +188,6 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
             className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             <Truck size={18} />
-            {/* --- TEXTO DE BOTÓN CONDICIONAL --- */}
             {isSaving 
               ? 'Moviendo...' 
               : (mode === 'full' ? 'Mover Lote Completo' : `Mover ${piezasAMover} Piezas`)

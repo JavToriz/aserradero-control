@@ -34,6 +34,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Fecha y al menos un producto son requeridos' }, { status: 400 });
     }
 
+    // FIX FECHA: Fijamos a mediodía UTC
+    const fechaISO = new Date(`${fecha_ingreso}T12:00:00Z`).toISOString();
+
     // Preparamos los datos para la transacción
     const createData = productos.map((producto: any) => {
       if (!producto.id_producto_catalogo || !producto.piezas_actuales || !producto.ubicacion) {
@@ -44,12 +47,11 @@ export async function POST(req: Request) {
         id_producto_catalogo: producto.id_producto_catalogo,
         id_orden_aserrado_origen: id_orden_aserrado_origen || null,
         piezas_actuales: producto.piezas_actuales,
-        ubicacion: producto.ubicacion, // Ej: 'PRODUCCION'
-        fecha_ingreso: new Date(fecha_ingreso).toISOString(),
+        ubicacion: producto.ubicacion, 
+        fecha_ingreso: fechaISO, // Usamos la fecha corregida
       };
     });
 
-    // Usamos una transacción para crear todos los lotes de stock
     const resultado = await prisma.stockProductoTerminado.createMany({
       data: createData,
     });

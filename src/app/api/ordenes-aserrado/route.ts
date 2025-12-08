@@ -35,10 +35,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * POST: Crear una nueva Orden de Aserrado (Form 7.1)
- * Registra el consumo de m³ en rollo.
- */
 export async function POST(req: Request) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId || !authPayload.userId) {
@@ -53,11 +49,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Fecha, especie y m³ son requeridos' }, { status: 400 });
     }
 
+    // FIX FECHA: Agregamos T12:00:00Z para fijar la fecha a mediodía UTC
+    // Esto evita que la conversión de zona horaria la mueva al día anterior
+    const fechaISO = new Date(`${fecha_aserrado}T12:00:00Z`).toISOString();
+
     const nuevaOrden = await prisma.ordenAserrado.create({
       data: {
         id_aserradero: authPayload.aserraderoId,
         id_responsable_usuario: authPayload.userId,
-        fecha_aserrado: new Date(fecha_aserrado).toISOString(),
+        fecha_aserrado: fechaISO,
         especie: especie,
         total_m3_rollo_consumido: total_m3_rollo_consumido,
         observaciones: observaciones || null,

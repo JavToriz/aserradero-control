@@ -16,51 +16,51 @@ type OrdenAserrado = {
   total_m3_rollo_consumido: number;
 };
 
-// Tipo para el producto del catálogo (lo que buscamos)
 type ProductoCatalogo = {
   id_producto_catalogo: number;
   descripcion: string;
   tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
-  atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number } | null;
-  atributos_triplay?: { espesor_mm: number; ancho_ft: number; largo_ft: number } | null;
+  atributos_madera?: { 
+    genero: string; tipo: string; clasificacion: string; 
+    grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number 
+  } | null;
+  atributos_triplay?: { 
+    genero: string; tipo: string; procedencia: string;
+    espesor_mm: number; ancho_ft: number; largo_ft: number 
+  } | null;
   [key: string]: any;
 };
 
-// Tipo para la fila dinámica en nuestro formulario
 type ProductoFila = {
-  idUnico: string; // Para el 'key' de React
+  idUnico: string;
   producto: ProductoCatalogo | null;
-  productoNombre: string; // Para el valor del input de búsqueda
+  productoNombre: string;
   piezas: number;
   total_m3: number;
   ubicacion: 'PRODUCCION' | 'SECADO' | 'BODEGA' | 'ANAQUELES';
 };
 
-// Prop para el callback de éxito
 interface RegistrarProduccionFormProps {
   onSaveSuccess: (resultado: any) => void;
 }
 
-// Opciones de ubicación inicial (según tu schema Enum)
 const UBICACIONES_INICIALES = ['PRODUCCION', 'SECADO', 'BODEGA', 'ANAQUELES'];
 
 export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFormProps) {
   const router = useRouter();
   const getToken = () => localStorage.getItem('sessionToken');
 
-  // --- ESTADOS ---
   const [fecha_ingreso, setFechaIngreso] = useState(new Date().toISOString().split('T')[0]);
   const [ordenAserradoId, setOrdenAserradoId] = useState<number | null>(null);
   const [listaOrdenes, setListaOrdenes] = useState<OrdenAserrado[]>([]);
   const [productos, setProductos] = useState<ProductoFila[]>([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [filaParaModal, setFilaParaModal] = useState<string | null>(null); // 'idUnico' de la fila
+  const [filaParaModal, setFilaParaModal] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar las órdenes de aserrado para el <select>
   useEffect(() => {
     const fetchOrdenes = async () => {
       const token = getToken();
@@ -78,8 +78,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
     fetchOrdenes();
   }, []);
 
-  // --- MANEJADORES DE LA LISTA DINÁMICA ---
-
   const handleAddRow = () => {
     setProductos(prev => [
       ...prev,
@@ -89,7 +87,7 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
         productoNombre: '',
         piezas: 0,
         total_m3: 0,
-        ubicacion: 'PRODUCCION', // Default
+        ubicacion: 'PRODUCCION',
       }
     ]);
   };
@@ -98,16 +96,14 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
     setProductos(prev => prev.filter(p => p.idUnico !== idUnico));
   };
 
-  // Actualiza una fila
   const updateFila = (idUnico: string, campo: keyof ProductoFila, valor: any) => {
     setProductos(prev => 
       prev.map(fila => {
         if (fila.idUnico === idUnico) {
           const nuevaFila = { ...fila, [campo]: valor };
 
-          // Recalcular m³ si cambia el producto o las piezas
           if (campo === 'producto' || campo === 'piezas') {
-            const piezas = (campo === 'piezas') ? Number(valor) : fila.piezas;
+            const piezas = (campo === 'piezas') ? (valor === '' ? 0 : Number(valor)) : fila.piezas;
             const producto = (campo === 'producto') ? (valor as ProductoCatalogo | null) : fila.producto;
             nuevaFila.total_m3 = calcularMetrosCubicos(producto, piezas);
           }
@@ -118,16 +114,13 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
     );
   };
 
-  // --- MANEJADORES DE MODAL ---
-
   const handleOpenModal = (idUnico: string) => {
-    setFilaParaModal(idUnico); // Guardamos la fila que está siendo editada
+    setFilaParaModal(idUnico);
     setIsModalOpen(true);
   };
 
   const handleModalSaveSuccess = (nuevoProducto: ProductoCatalogo) => {
     if (filaParaModal) {
-      // Auto-seleccionar el producto recién creado en la fila
       updateFila(filaParaModal, 'producto', nuevoProducto);
       updateFila(filaParaModal, 'productoNombre', nuevoProducto.descripcion);
     }
@@ -135,14 +128,11 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
     setFilaParaModal(null);
   };
 
-  // --- SUBMIT ---
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
 
-    // Validación
     if (productos.length === 0) {
       setError('Debes añadir al menos un producto.');
       setIsSaving(false);
@@ -154,7 +144,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
       return;
     }
 
-    // Formatear datos para la API
     const datosParaApi = {
       id_orden_aserrado_origen: ordenAserradoId,
       fecha_ingreso: fecha_ingreso,
@@ -189,12 +178,37 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
     }
   };
 
+  // Función helper para renderizar los detalles del producto en el buscador
+  const renderProductoItem = (item: ProductoCatalogo) => {
+    let detalles = '';
+    let medidas = '';
+
+    if (item.tipo_categoria === 'MADERA_ASERRADA' && item.atributos_madera) {
+      const { genero, clasificacion, grosor_pulgadas, ancho_pulgadas, largo_pies } = item.atributos_madera;
+      detalles = `${genero || ''} - ${clasificacion || ''}`;
+      medidas = `${grosor_pulgadas}" x ${ancho_pulgadas}" x ${largo_pies}'`;
+    } else if (item.tipo_categoria === 'TRIPLAY_AGLOMERADO' && item.atributos_triplay) {
+      const { genero, tipo, espesor_mm, ancho_ft, largo_ft } = item.atributos_triplay;
+      detalles = `${genero || ''} ${tipo || ''}`;
+      medidas = `${espesor_mm}mm x ${ancho_ft}' x ${largo_ft}'`;
+    }
+
+    return (
+      <div className="flex flex-col py-1">
+        <span className="font-medium text-gray-800">{item.descripcion}</span>
+        <div className="flex justify-between text-xs text-gray-500 mt-0.5">
+          <span>{detalles}</span>
+          <span className="font-semibold bg-gray-100 px-1 rounded">{medidas}</span>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-8">
         
-        {/* SECCIÓN 1: DATOS GENERALES */}
         <FormSection title="1. Datos Generales de Producción">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input 
@@ -220,13 +234,11 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
           </div>
         </FormSection>
 
-        {/* SECCIÓN 2: PRODUCTOS CREADOS (LISTA DINÁMICA) */}
         <FormSection title="2. Productos Creados">
           <div className="space-y-4">
             {productos.map((fila, index) => (
               <div key={fila.idUnico} className="grid grid-cols-12 gap-x-4 gap-y-2 p-4 border rounded-lg bg-gray-50">
                 
-                {/* Col 1: Producto (Buscador) */}
                 <div className="col-span-12 md:col-span-5">
                   <SearchAndCreateInput<ProductoCatalogo>
                     label={`Producto #${index + 1}`}
@@ -236,28 +248,32 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
                     inputValue={fila.productoNombre}
                     onInputChange={(value) => {
                       updateFila(fila.idUnico, 'productoNombre', value);
-                      if (fila.producto) updateFila(fila.idUnico, 'producto', null); // Limpiar si se edita
+                      if (fila.producto) updateFila(fila.idUnico, 'producto', null);
                     }}
                     onSelect={(item) => {
                       updateFila(fila.idUnico, 'producto', item);
                       updateFila(fila.idUnico, 'productoNombre', item.descripcion);
                     }}
                     onCreateNew={() => handleOpenModal(fila.idUnico)}
+                    renderItem={renderProductoItem} // <-- USAMOS EL RENDERIZADO PERSONALIZADO
                   />
                 </div>
                 
-                {/* Col 2: Cantidad (Piezas) */}
                 <div className="col-span-6 md:col-span-2">
                   <Input 
                     label="Piezas" 
                     type="number" 
                     min="0"
-                    value={fila.piezas} 
-                    onChange={(e) => updateFila(fila.idUnico, 'piezas', Number(e.target.value))}
+                    // UX Fix: Si es 0, mostramos cadena vacía para que no estorbe el 0
+                    value={fila.piezas === 0 ? '' : fila.piezas} 
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                      updateFila(fila.idUnico, 'piezas', val);
+                    }}
+                    placeholder="0"
                   />
                 </div>
 
-                {/* Col 3: Total m³ (Calculado) */}
                 <div className="col-span-6 md:col-span-2">
                   <Input 
                     label="Total m³" 
@@ -268,7 +284,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
                   />
                 </div>
 
-                {/* Col 4: Ubicación */}
                 <div className="col-span-10 md:col-span-2">
                   <Select 
                     label="Ubicación"
@@ -281,7 +296,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
                   </Select>
                 </div>
                 
-                {/* Col 5: Eliminar Fila */}
                 <div className="col-span-2 md:col-span-1 flex items-end">
                   <button
                     type="button"
@@ -297,7 +311,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
             ))}
           </div>
 
-          {/* Botón para añadir nueva fila */}
           <button
             type="button"
             onClick={handleAddRow}
@@ -308,7 +321,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
           </button>
         </FormSection>
 
-        {/* BOTONES DE ACCIÓN */}
         <div className="border-t pt-6 flex justify-end gap-4">
           {error && <p className="text-red-600 text-sm my-auto mr-4">Error: {error}</p>}
           <button
@@ -331,7 +343,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
         </div>
       </form>
 
-      {/* Modal para crear nuevo producto del catálogo */}
       <ProductoCatalogoFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -341,7 +352,6 @@ export function RegistrarProduccionForm({ onSaveSuccess }: RegistrarProduccionFo
   );
 }
 
-// --- Componentes de UI genéricos (copiados del form anterior) ---
 const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <fieldset className="space-y-4">
     <legend className="text-lg font-semibold text-gray-700 mb-4">{title}</legend>

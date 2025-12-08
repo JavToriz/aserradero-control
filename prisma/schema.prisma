@@ -474,6 +474,7 @@ model ReciboGasto {
   concepto_detalle        String?
   documento_asociado_id   Int?
   documento_asociado_tipo String?
+  estado_pago  String  @default("PENDIENTE") // 'PENDIENTE', 'PAGADO'
 
   aserradero           Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
   turno                TurnoCaja? @relation(fields: [id_turno], references: [id_turno], onDelete: SetNull)

@@ -9,12 +9,14 @@ import { Plus, Loader2 } from 'lucide-react';
 interface SearchAndCreateInputProps<T> {
   label: string;
   placeholder: string;
-  searchApiUrl: string;       // Ej: "/api/personas"
-  displayField: keyof T;      // Ej: "nombre_completo"
-  inputValue: string;         // Valor controlado desde el formulario padre
+  searchApiUrl: string;       
+  displayField: keyof T;      
+  inputValue: string;         
   onInputChange: (value: string) => void;
   onSelect: (item: T) => void;
   onCreateNew: () => void;
+  // NUEVO: Prop opcional para renderizar el item de forma personalizada
+  renderItem?: (item: T) => React.ReactNode;
 }
 
 export function SearchAndCreateInput<T extends { [key: string]: any }>({
@@ -26,29 +28,26 @@ export function SearchAndCreateInput<T extends { [key: string]: any }>({
   onInputChange,
   onSelect,
   onCreateNew,
+  renderItem,
 }: SearchAndCreateInputProps<T>) {
   
-  // Usamos nuestro hook de búsqueda
   const { query, setQuery, results, isLoading, setResults } = useDebouncedSearch<T>(searchApiUrl);
   const [isListOpen, setIsListOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Manejar el cambio en el input
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    onInputChange(value); // Actualiza el estado del formulario padre
-    setQuery(value);      // Actualiza el estado del hook de búsqueda
+    onInputChange(value); 
+    setQuery(value);      
     setIsListOpen(true);
   };
 
-  // Manejar la selección de un item de la lista
   const handleSelect = (item: T) => {
-    onSelect(item);       // Llama al callback del padre con el objeto completo
-    setIsListOpen(false); // Cierra la lista
-    setResults([]);       // Limpia los resultados
+    onSelect(item);       
+    setIsListOpen(false); 
+    setResults([]);       
   };
 
-  // Cerrar la lista si se hace clic fuera del componente
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -76,7 +75,6 @@ export function SearchAndCreateInput<T extends { [key: string]: any }>({
             onFocus={() => setIsListOpen(true)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          {/* Indicador de carga */}
           {isLoading && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 animate-spin" />
           )}
@@ -96,19 +94,20 @@ export function SearchAndCreateInput<T extends { [key: string]: any }>({
         <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {results.map((item, index) => (
             <li
-              key={index} // Idealmente usar item.id si existe
-              className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-              onMouseDown={(e) => { // Usar onMouseDown para que se dispare antes que el onBlur del input
+              key={index}
+              className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 border-gray-100"
+              onMouseDown={(e) => {
                 e.preventDefault();
                 handleSelect(item);
               }}
             >
-              {String(item[displayField])}
+              {/* Si existe renderItem, lo usamos. Si no, usamos el displayField estándar */}
+              {renderItem ? renderItem(item) : String(item[displayField])}
             </li>
           ))}
         </ul>
       )}
-      {/* Mensaje de no resultados */}
+      
       {isListOpen && !isLoading && results.length === 0 && query.length > 1 && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4 text-sm text-gray-500">
           No se encontraron resultados para "{query}".

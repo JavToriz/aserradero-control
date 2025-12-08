@@ -1,13 +1,17 @@
 // components/layout/Sidebar.tsx
 import Link from 'next/link';
 // ... (importa los íconos como antes)
-import { Home, ArrowUpCircle, ArrowDownCircle, Box, Users, Truck } from 'lucide-react';
+import { Home, ArrowUpCircle, ArrowDownCircle, Box, Users, Truck, Boxes, Store, Receipt} from 'lucide-react';
 import  LogoutButton  from '../ui/LogoutButton';
 
 const menuItems = [
   { name: 'Registrar Entrada', href: '/registrar-entrada', icon: ArrowUpCircle, color: 'text-green-500' },
   // ... (los demás items del menú)
-  { name: 'Inventario', href: '/inventario', icon: Home },
+  { name: 'Productos', href: '/productos', icon: Home },
+  { name: 'Inventario', href: '/produccion', icon: Boxes },
+  { name: 'Reportes', href: '/reportes/semarnat', icon: Boxes },
+  { name: 'Ventas', href: '/ventas', icon: Store },
+  { name: 'Gastos', href: '/gastos', icon: Receipt },
 ];
 
 export function Sidebar() {
