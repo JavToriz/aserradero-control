@@ -3,23 +3,28 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
 
-interface Params {
-  params: { id: string };
-}
+// Definimos el tipo correcto para Next.js 15
+type Params = Promise<{ id: string }>;
 
 // GET: Obtener un solo producto por ID
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  req: Request, 
+  { params }: { params: Params } // 1. Cambiamos el tipado aquí
+) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 
   try {
-    const productId = parseInt(params.id, 10);
+    // 2. AWAIT a params antes de usarlo
+    const { id } = await params; 
+    const productId = parseInt(id, 10);
+
     const producto = await prisma.productoCatalogo.findFirst({
       where: {
         id_producto_catalogo: productId,
-        id_aserradero: authPayload.aserraderoId, // <-- solo busca en el aserradero del usuario
+        id_aserradero: authPayload.aserraderoId,
       },
       include: {
         atributos_madera: true,
@@ -37,17 +42,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 // PUT: Actualizar un producto
-export async function PUT(req: Request, { params }: { params: { id: string } } ) {
+export async function PUT(
+  req: Request, 
+  { params }: { params: Params } // 1. Tipado actualizado
+) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 
   try {
-    const productId = parseInt(params.id, 10);
+    // 2. AWAIT a params
+    const { id } = await params;
+    const productId = parseInt(id, 10);
+    
     const body = await req.json();
     const { tipo_categoria, atributos, ...productData } = body;
-
 
     const updatedProduct = await prisma.productoCatalogo.update({
       where: {
@@ -58,7 +68,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } } )
       },
       data: {
         ...productData,
-        // Actualiza los atributos anidados dependiendo de la categoría
         atributos_madera: tipo_categoria === 'MADERA_ASERRADA' ? { update: atributos } : undefined,
         atributos_triplay: tipo_categoria === 'TRIPLAY_AGLOMERADO' ? { update: atributos } : undefined,
       },
@@ -66,34 +75,45 @@ export async function PUT(req: Request, { params }: { params: { id: string } } )
 
     return NextResponse.json(updatedProduct);
   } catch (error: any) {
-    if (error.code === 'P2025') { // Si no encuentra el registro que cumpla la condición
+    if (error.code === 'P2025') {
       return NextResponse.json({ message: "Producto no encontrado" }, { status: 404 });
     }
     return NextResponse.json({ message: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
-// DELETE: Eliminar un producto
-export async function DELETE(req: Request, { params }: Params) {
+// DELETE: Soft Delete
+export async function DELETE(
+  req: Request, 
+  { params }: { params: Params } // 1. Tipado actualizado
+) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 
   try {
-    const productId = parseInt(params.id, 10);
-    await prisma.productoCatalogo.delete({
+    const { id } = await params;
+    const productId = parseInt(id, 10);
+
+    // EN LUGAR DE delete, USAMOS update
+    const productoDesactivado = await prisma.productoCatalogo.update({
       where: {
         id_producto_catalogo_id_aserradero: {
             id_producto_catalogo: productId,
             id_aserradero: authPayload.aserraderoId
         }
       },
+      data: {
+        activo: false 
+      }
     });
-    return new NextResponse(null, { status: 204 });
+
+    return NextResponse.json(productoDesactivado);
+
   } catch (error: any) {
     if (error.code === 'P2025') {
-        return NextResponse.json({ message: "Producto no encontrado en este aserradero" }, { status: 404 });
+       return NextResponse.json({ message: "Producto no encontrado" }, { status: 404 });
     }
     return NextResponse.json({ message: 'Error interno del servidor' }, { status: 500 });
   }

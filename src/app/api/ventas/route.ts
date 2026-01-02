@@ -63,6 +63,8 @@ export async function POST(req: Request) {
       id_cliente, 
       fecha_salida, // Viene como string YYYY-MM-DD
       tipo_pago, 
+      cuenta_destino, // <-- Recibimos el nombre de la cuenta (si es transferencia)
+      id_reembarque,  // <-- Recibimos el ID del reembarque vinculado
       productos_venta, // Array con la estructura de venta + origen del stock
       total_venta,
       id_vehiculo, // Opcional
@@ -95,6 +97,8 @@ export async function POST(req: Request) {
           id_cliente: id_cliente,
           total_venta: total_venta,
           tipo_pago: tipo_pago,
+          cuenta_destino_transferencia: tipo_pago === 'Transferencia' ? cuenta_destino : null,
+          id_reembarque_asociado: id_reembarque ? parseInt(id_reembarque) : null,
           pagado: tipo_pago === 'Efectivo', // Si es efectivo, asume pagado (ajustar según lógica)
           id_usuario: authPayload.userId,
           id_vehiculo: id_vehiculo || null,

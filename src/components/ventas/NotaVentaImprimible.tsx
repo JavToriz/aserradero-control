@@ -42,15 +42,13 @@ const S = {
     marginBottom: '20px',
   },
   logoBox: {
-    width: '80px',
-    height: '80px',
-    border: '2px solid #000000',
-    borderRadius: '50%',
+    width: '100px',
+    height: '100px',
+    //border: '2px solid #000000',
+    //borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '10px',
-    textAlign: 'center' as const,
     marginRight: '15px',
   },
   titleBox: {
@@ -102,7 +100,17 @@ export const NotaVentaImprimible = ({ datos }: NotaProps) => {
       {/* HEADER */}
       <div style={S.header}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={S.logoBox}>LOGO<br/>ASERRADERO</div>
+          {/* --- LOGO --- */}
+          <div style={S.logoBox}>
+            {/* Asegúrate de guardar tu imagen en: public/images/logo-aserradero.png
+              Si usas SVG es mejor para impresión.
+            */}
+            <img 
+              src="/images/logo-puente-de-doria.png" 
+              alt="Logo Aserradero" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          </div>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, textTransform: 'uppercase' }}>Aserradero Puente de Doria</h1>
             <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '5px 0' }}>HERMENEGILDO BADILLO CRUZ</h2>

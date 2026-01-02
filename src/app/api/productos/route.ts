@@ -18,12 +18,14 @@ export async function GET(req: NextRequest) {
     const tipo = searchParams.get('tipo');
     const clasificacion = searchParams.get('clasificacion');
     const procedencia = searchParams.get('procedencia');
-    const search = searchParams.get('search'); // filtro de búsqueda general
+    // ---  Aceptamos 'query' (del componente UI) O 'search' (legacy) ---
+    const rawSearch = searchParams.get('query') || searchParams.get('search');
+    const search = rawSearch?.trim(); // filtro de búsqueda general
 
     // Construimos la cláusula 'where' para la consulta de Prisma
     const whereClause: any = { 
       AND : [
-        { id_aserradero: authPayload.aserraderoId }
+        { id_aserradero: authPayload.aserraderoId, activo: true }
       ]
     };
 
@@ -50,16 +52,28 @@ export async function GET(req: NextRequest) {
 
     // Lógica para la búsqueda general
     if (search) {
-        whereClause.AND.push({
-        OR: [
+        // Intentamos ver si es un número para buscar también por medidas
+        const isNumber = !isNaN(parseFloat(search));
+
+        const orConditions: any[] = [
+            // Buscar en Descripción
             { descripcion: { contains: search, mode: 'insensitive' } },
-            { sku: { contains: search, mode: 'insensitive' } },
-            // La búsqueda por medidas es más compleja, aquí un ejemplo simple
-            // Para una búsqueda más robusta, podrías necesitar una columna de texto pre-calculada.
-            { atributos_madera: { largo_pies: { equals: parseFloat(search) || 0 } } },
-            { atributos_madera: { ancho_pulgadas: { equals: parseFloat(search) || 0 } } },
-        ],
-        });
+            // Buscar en SKU (¡Aquí está el cambio clave!)
+            { sku: { contains: search, mode: 'insensitive' } } 
+        ];
+
+        // Si el usuario escribe números (ej: "2.5"), buscamos en medidas también
+        if (isNumber) {
+            const num = parseFloat(search);
+            orConditions.push(
+                { atributos_madera: { largo_pies: { equals: num } } },
+                { atributos_madera: { ancho_pulgadas: { equals: num } } },
+                { atributos_madera: { grosor_pulgadas: { equals: num } } },
+                { atributos_triplay: { espesor_mm: { equals: num } } }
+            );
+        }
+
+        whereClause.AND.push({ OR: orConditions });
     }
 
     try {
@@ -69,7 +83,8 @@ export async function GET(req: NextRequest) {
             atributos_madera: true,
             atributos_triplay: true,
         },
-        orderBy: { id_producto_catalogo: 'desc' }
+        orderBy: { id_producto_catalogo: 'desc' },
+        take: 15
         });
         return NextResponse.json(productos);
     } catch (error) {
@@ -125,7 +140,7 @@ export async function POST(req: Request) {
           ...productData,
           sku: sku,
           tipo_categoria,
-          id_aserradero: id_aserradero, // <-- AÑADE ESTA LÍNEA
+          id_aserradero: id_aserradero, 
           atributos_madera: {
             create: atributos,
           },
@@ -137,7 +152,7 @@ export async function POST(req: Request) {
           ...productData,
           sku: sku,
           tipo_categoria,
-          id_aserradero: id_aserradero, // <-- Y AÑADE ESTA LÍNEA
+          id_aserradero: id_aserradero, 
           atributos_triplay: {
             create: atributos,
           },

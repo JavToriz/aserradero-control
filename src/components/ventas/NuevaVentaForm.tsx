@@ -6,73 +6,117 @@ import { useRouter } from 'next/navigation';
 import { SearchAndCreateInput } from '@/components/ui/SearchAndCreateInput';
 import { PersonaFormModal } from '@/components/personas/PersonaFormModal';
 import { SeleccionarInventarioModal } from './SeleccionarInventarioModal';
-import { Save, Ban, Plus, Trash2, Printer } from 'lucide-react';
-import { NotaVentaImprimible } from './NotaVentaImprimible'; // Ver Paso 4
+import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box } from 'lucide-react'; // Añadí Box icono para SKU
+import { NotaVentaImprimible } from './NotaVentaImprimible'; 
 
 // Tipos
 type Cliente = { id_persona: number; nombre_completo: string; [key: string]: any };
 type Vehiculo = { id_vehiculo: number; matricula: string; marca: string; modelo: string; capacidad_carga_toneladas: number };
+type ReembarqueSearch = { id_reembarque: number; folio_progresivo: string; destinatario?: { nombre_completo: string } };
+
 type ProductoCatalogo = { 
   id_producto_catalogo: number; 
   descripcion: string; 
-  precio_venta: number;
+  precio_venta: number;   
+  precio_mayoreo?: number; 
+  sku?: string; // Aseguramos que el SKU esté en el tipo
+  tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
+  atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number } | null;
+  atributos_triplay?: { espesor_mm: number; ancho_ft: number; largo_ft: number } | null;
   [key: string]: any 
 };
 
-// Tipo para la fila de producto en el carrito
 type ProductoVenta = {
   idUnico: string;
   producto: ProductoCatalogo | null;
   nombreProducto: string;
-  cantidad: number; // Cantidad total a vender
+  cantidad: number; 
   precioUnitario: number;
-  origenes: { id_stock: number; cantidad: number }[]; // De dónde sale
-  inventarioValidado: boolean; // ¿Ya seleccionó el stock?
+  tipoPrecio: 'MENUDEO' | 'MAYOREO'; 
+  origenes: { id_stock: number; cantidad: number }[]; 
+  inventarioValidado: boolean; 
 };
 
 export function NuevaVentaForm() {
   const router = useRouter();
   
-  // Estados del Formulario
+  // Estados Generales
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [clienteNombre, setClienteNombre] = useState('');
   
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
   const [vehiculoMatricula, setVehiculoMatricula] = useState('');
   
+  const [mostrarReembarque, setMostrarReembarque] = useState(false);
+  const [reembarque, setReembarque] = useState<ReembarqueSearch | null>(null);
+  const [reembarqueQuery, setReembarqueQuery] = useState('');
+
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [tipoPago, setTipoPago] = useState('Efectivo');
-  const [quienExpide, setQuienExpide] = useState(''); // Nombre libre
+  const [cuentaDestino, setCuentaDestino] = useState(''); 
+  const [quienExpide, setQuienExpide] = useState(''); 
 
   const [carrito, setCarrito] = useState<ProductoVenta[]>([]);
   
-  // Estados de Modales
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
-  
-  // Estado para controlar qué producto se está configurando en el modal de stock
   const [productoParaStock, setProductoParaStock] = useState<{idUnico: string, producto: any, cantidad: number} | null>(null);
-
-  // Estado para la vista previa de impresión
   const [ventaGuardada, setVentaGuardada] = useState<any | null>(null);
-
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- Lógica del Carrito ---
+  // --- RENDERIZADO PERSONALIZADO (Aquí está la magia UX) ---
+  const renderReembarqueItem = (item: ReembarqueSearch) => (
+    <div className="flex flex-col py-1">
+      <span className="font-bold">Folio: {item.folio_progresivo}</span>
+      <span className="text-xs text-gray-500">Dest: {item.destinatario?.nombre_completo || 'S/N'}</span>
+    </div>
+  );
 
+  const renderProductoItem = (item: ProductoCatalogo) => {
+    let medidas = '';
+
+    // Lógica para formatear medidas bonito
+    if (item.tipo_categoria === 'MADERA_ASERRADA' && item.atributos_madera) {
+      const { grosor_pulgadas, ancho_pulgadas, largo_pies } = item.atributos_madera;
+      medidas = `${grosor_pulgadas}" x ${ancho_pulgadas}" x ${largo_pies}'`;
+    } else if (item.tipo_categoria === 'TRIPLAY_AGLOMERADO' && item.atributos_triplay) {
+      const { espesor_mm, ancho_ft, largo_ft } = item.atributos_triplay;
+      medidas = `${espesor_mm}mm x ${ancho_ft}' x ${largo_ft}'`;
+    }
+
+    return (
+      <div className="flex flex-col py-1 w-full">
+        {/* Fila 1: Descripción Principal */}
+        <span className="font-medium text-gray-800 text-sm truncate">{item.descripcion}</span>
+        
+        {/* Fila 2: SKU y Medidas */}
+        <div className="flex justify-between items-center mt-0.5">
+          <div className="flex items-center gap-1 text-xs text-blue-600 font-mono">
+             <Box size={10} /> {/* Iconito de caja */}
+             <span>SKU: {item.sku || 'S/N'}</span>
+          </div>
+          {medidas && (
+            <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+              {medidas}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // --- Lógica Carrito ---
   const agregarFila = () => {
-    setCarrito(prev => [
-      ...prev,
-      {
-        idUnico: `prod-${Date.now()}`,
-        producto: null,
-        nombreProducto: '',
-        cantidad: 0,
-        precioUnitario: 0,
-        origenes: [],
-        inventarioValidado: false
-      }
-    ]);
+    setCarrito(prev => [...prev, {
+      idUnico: `prod-${Date.now()}`, 
+      producto: null, 
+      nombreProducto: '', 
+      cantidad: 0,
+      precioUnitario: 0, 
+      tipoPrecio: 'MENUDEO', 
+      origenes: [], 
+      inventarioValidado: false
+    }]);
   };
 
   const actualizarFila = (idUnico: string, campo: keyof ProductoVenta, valor: any) => {
@@ -80,15 +124,39 @@ export function NuevaVentaForm() {
       if (item.idUnico === idUnico) {
         const nuevoItem = { ...item, [campo]: valor };
         
-        // Si cambia producto o cantidad, invalidar la selección de stock
-        if (campo === 'producto' || campo === 'cantidad') {
+        if (campo === 'producto' && valor) {
+          const p = valor as ProductoCatalogo;
+          const precioBase = nuevoItem.tipoPrecio === 'MAYOREO' && Number(p.precio_mayoreo) > 0
+            ? Number(p.precio_mayoreo) 
+            : Number(p.precio_venta);
+            
+          nuevoItem.precioUnitario = precioBase;
           nuevoItem.inventarioValidado = false;
           nuevoItem.origenes = [];
-          if (campo === 'producto' && valor) {
-             nuevoItem.precioUnitario = valor.precio_venta || 0;
-          }
+        }
+
+        if (campo === 'cantidad') {
+          nuevoItem.inventarioValidado = false;
+          nuevoItem.origenes = [];
         }
         return nuevoItem;
+      }
+      return item;
+    }));
+  };
+
+  const cambiarTipoPrecio = (idUnico: string, nuevoTipo: 'MENUDEO' | 'MAYOREO') => {
+    setCarrito(prev => prev.map(item => {
+      if (item.idUnico === idUnico && item.producto) {
+        let nuevoPrecio = 0;
+        if (nuevoTipo === 'MAYOREO') {
+           nuevoPrecio = Number(item.producto.precio_mayoreo) > 0 
+             ? Number(item.producto.precio_mayoreo) 
+             : Number(item.producto.precio_venta);
+        } else {
+           nuevoPrecio = Number(item.producto.precio_venta);
+        }
+        return { ...item, tipoPrecio: nuevoTipo, precioUnitario: nuevoPrecio };
       }
       return item;
     }));
@@ -99,10 +167,7 @@ export function NuevaVentaForm() {
   };
 
   const abrirModalStock = (item: ProductoVenta) => {
-    if (!item.producto || item.cantidad <= 0) {
-      alert("Selecciona un producto y una cantidad mayor a 0 primero.");
-      return;
-    }
+    if (!item.producto || item.cantidad <= 0) return alert("Selecciona producto y cantidad > 0");
     setProductoParaStock({
       idUnico: item.idUnico,
       producto: { id: item.producto.id_producto_catalogo, nombre: item.producto.descripcion },
@@ -120,17 +185,20 @@ export function NuevaVentaForm() {
     }
   };
 
-  // Cálculos
+  const ocultarReembarque = () => {
+    setReembarque(null);
+    setReembarqueQuery('');
+    setMostrarReembarque(false);
+  };
+
   const totalVenta = carrito.reduce((acc, item) => acc + (item.cantidad * item.precioUnitario), 0);
 
-  // --- Guardar Venta ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cliente) return alert("Selecciona un cliente");
     if (carrito.length === 0) return alert("Añade productos");
-    if (carrito.some(p => !p.inventarioValidado)) {
-      return alert("Hay productos sin asignación de inventario. Haz clic en 'Seleccionar Stock' en las filas rojas.");
-    }
+    if (carrito.some(p => !p.inventarioValidado)) return alert("Hay productos sin asignar stock.");
+    if (tipoPago === 'Transferencia' && !cuentaDestino.trim()) return alert("Ingresa el nombre de la cuenta destino.");
 
     setIsSaving(true);
     const token = localStorage.getItem('sessionToken');
@@ -139,6 +207,8 @@ export function NuevaVentaForm() {
       id_cliente: cliente.id_persona,
       fecha_salida: fecha,
       tipo_pago: tipoPago,
+      cuenta_destino: tipoPago === 'Transferencia' ? cuentaDestino : null, 
+      id_reembarque: reembarque?.id_reembarque, 
       id_vehiculo: vehiculo?.id_vehiculo,
       nombre_quien_expide: quienExpide,
       total_venta: totalVenta,
@@ -154,19 +224,15 @@ export function NuevaVentaForm() {
     try {
       const res = await fetch('/api/ventas', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      // Éxito: Guardamos los datos completos (con cliente y vehiculo) para la impresión
       setVentaGuardada({
-        ...data, // datos de la venta guardada (folio, id, etc)
+        ...data,
         cliente,
         vehiculo,
         detalles: carrito.map(p => ({
@@ -174,9 +240,8 @@ export function NuevaVentaForm() {
           cantidad: p.cantidad,
           precio_unitario: p.precioUnitario,
           importe: p.cantidad * p.precioUnitario,
-          // Mock de atributos para la impresión si no vienen en el producto seleccionado
           genero: p.producto?.atributos_madera?.genero || '',
-          medidas: p.producto?.descripcion // O lógica de formateo de medidas
+          medidas: p.producto?.descripcion 
         })),
         quien_expide: quienExpide
       });
@@ -188,19 +253,20 @@ export function NuevaVentaForm() {
     }
   };
 
-  // Si ya se guardó, mostrar vista de impresión
   if (ventaGuardada) {
     return (
-      <div className="text-center">
-        <div className="mb-4 bg-green-100 p-4 rounded text-green-800">
+      <div className="text-center animate-in fade-in duration-300">
+        <div className="mb-4 bg-green-100 p-4 rounded text-green-800 shadow-sm">
           ✅ Venta registrada exitosamente. Folio: <strong>{ventaGuardada.folio_nota}</strong>
         </div>
-        <NotaVentaImprimible datos={ventaGuardada} />
+        <div className="border rounded bg-white shadow-lg mx-auto p-2 mb-6 max-w-4xl overflow-auto h-[600px]">
+           <NotaVentaImprimible datos={ventaGuardada} />
+        </div>
         <div className="mt-6 flex justify-center gap-4">
-          <button onClick={() => window.print()} className="bg-blue-600 text-white px-6 py-2 rounded flex items-center gap-2">
+          <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded flex items-center gap-2 shadow transition-colors">
             <Printer size={20} /> Imprimir Nota
           </button>
-          <button onClick={() => router.refresh()} className="bg-gray-200 text-gray-800 px-6 py-2 rounded">
+          <button onClick={() => router.refresh()} className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-2 rounded border transition-colors">
             Nueva Venta
           </button>
         </div>
@@ -209,11 +275,58 @@ export function NuevaVentaForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 pb-20">
+    <form onSubmit={handleSubmit} className="space-y-8 pb-20 max-w-7xl mx-auto">
       
-      {/* 1. Cliente y Vehículo */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border space-y-6">
-        <h2 className="text-lg font-semibold text-gray-700 border-b pb-2">1. Datos del Cliente y Transporte</h2>
+      {/* 1. Cliente */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-2 gap-2">
+            <h2 className="text-lg font-bold text-gray-800">1. Datos Generales</h2>
+            
+            <div className="w-full md:w-auto">
+                {!mostrarReembarque ? (
+                    <button 
+                        type="button" 
+                        onClick={() => setMostrarReembarque(true)}
+                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-2 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+                    >
+                        <LinkIcon size={16} /> 
+                        Vincular con Reembarque (Opcional)
+                    </button>
+                ) : (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="w-64 md:w-80">
+                            <SearchAndCreateInput<ReembarqueSearch>
+                                label=""
+                                placeholder="Buscar folio (Ej: RE-2025-001)"
+                                searchApiUrl="/api/reembarques" 
+                                displayField="folio_progresivo"
+                                inputValue={reembarqueQuery}
+                                onInputChange={(v) => { setReembarqueQuery(v); setReembarque(null); }}
+                                onSelect={(r) => { setReembarque(r); setReembarqueQuery(r.folio_progresivo); }}
+                                onCreateNew={() => {}}
+                                renderItem={renderReembarqueItem}
+                            />
+                        </div>
+                        <button 
+                            type="button"
+                            onClick={ocultarReembarque}
+                            className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                )}
+                {reembarque && !mostrarReembarque && (
+                   <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                        🔗 Vinculado: <strong>{reembarque.folio_progresivo}</strong>
+                      </span>
+                      <button type="button" onClick={ocultarReembarque} className="text-xs text-red-500 underline">Quitar</button>
+                   </div>
+                )}
+            </div>
+        </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <SearchAndCreateInput<Cliente>
             label="Cliente"
@@ -236,67 +349,82 @@ export function NuevaVentaForm() {
             onCreateNew={() => alert("Modal Vehículo pendiente")}
           />
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-           {/* Campos informativos solo lectura */}
-           <div className="bg-gray-50 p-2 rounded">
-             <label className="text-xs text-gray-500">Dirección</label>
-             <p className="text-sm font-medium">{cliente?.domicilio_poblacion || '-'}</p>
-           </div>
-           <div className="bg-gray-50 p-2 rounded">
-             <label className="text-xs text-gray-500">Marca/Modelo</label>
-             <p className="text-sm font-medium">{vehiculo ? `${vehiculo.marca} ${vehiculo.modelo}` : '-'}</p>
-           </div>
-           <div className="bg-gray-50 p-2 rounded">
-             <label className="text-xs text-gray-500">Capacidad</label>
-             <p className="text-sm font-medium">{vehiculo?.capacidad_carga_toneladas || '-'} Ton</p>
-           </div>
-        </div>
       </div>
 
-      {/* 2. Detalles de Venta */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border space-y-6">
-        <div className="flex justify-between items-center border-b pb-2">
-           <h2 className="text-lg font-semibold text-gray-700">2. Productos</h2>
-           <div className="flex gap-4">
-             <input 
-               type="date" 
-               className="border rounded px-2 py-1 text-sm" 
-               value={fecha} 
-               onChange={e => setFecha(e.target.value)} 
-             />
-             <select 
-               className="border rounded px-2 py-1 text-sm"
-               value={tipoPago}
-               onChange={e => setTipoPago(e.target.value)}
-             >
-               <option>Efectivo</option>
-               <option>Transferencia</option>
-               <option>Crédito</option>
-             </select>
+      {/* 2. Productos */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-gray-100 pb-6">
+           <div>
+             <h2 className="text-xl font-bold text-gray-800 mb-1">2. Productos y Pago</h2>
+             <p className="text-sm text-gray-500">Agrega productos buscando por Nombre o SKU.</p>
+           </div>
+           
+           <div className="flex flex-wrap gap-4 items-end bg-gray-50 p-3 rounded-xl border border-gray-100 w-full lg:w-auto">
+             <div>
+               <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Fecha</label>
+               <input 
+                 type="date" 
+                 className="border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 text-sm py-2 px-3" 
+                 value={fecha} 
+                 onChange={e => setFecha(e.target.value)} 
+               />
+             </div>
+             <div className="flex-1 min-w-[150px]">
+               <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Método Pago</label>
+               <select 
+                 className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 text-sm py-2 px-3"
+                 value={tipoPago}
+                 onChange={e => setTipoPago(e.target.value)}
+               >
+                 <option>Efectivo</option>
+                 <option>Transferencia</option>
+                 <option>Tarjeta</option>
+                 <option>Cheque</option>
+                 <option>Crédito</option>
+               </select>
+             </div>
            </div>
         </div>
 
+        {tipoPago === 'Transferencia' && (
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-center gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="p-2 bg-blue-100 rounded-full text-blue-600">
+               <AlertCircle size={24} />
+            </div>
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Cuenta Destino (Titular Receptor)</label>
+              <input 
+                type="text" 
+                placeholder="Nombre de la cuenta destino..." 
+                className="w-full border-0 border-b-2 border-blue-200 bg-transparent px-0 py-2 text-sm focus:ring-0 focus:border-blue-600 text-blue-900 placeholder-blue-300 font-medium"
+                value={cuentaDestino}
+                onChange={(e) => setCuentaDestino(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Tabla de Carrito */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-100 text-gray-700 uppercase">
+        <div className="min-h-auto">
+          <table className="w-full text-sm text-left border-collapse ">
+            <thead className="bg-gray-100 text-gray-600 font-semibold uppercase tracking-wider text-xs">
               <tr>
-                <th className="px-4 py-3 rounded-l-lg">Producto</th>
-                <th className="px-4 py-3 w-24">Cant.</th>
-                <th className="px-4 py-3 w-32">Precio U.</th>
-                <th className="px-4 py-3 w-32">Importe</th>
-                <th className="px-4 py-3 text-center">Stock</th>
-                <th className="px-4 py-3 rounded-r-lg w-16"></th>
+                <th className="px-4 py-4 rounded-l-lg w-[35%]">Producto</th>
+                <th className="px-2 py-4 w-[10%] text-center">Cant.</th>
+                <th className="px-4 py-4 w-[25%]">Precio U.</th>
+                <th className="px-4 py-4 w-[15%] text-right">Importe</th>
+                <th className="px-4 py-4 text-center w-[15%]">Stock</th>
+                <th className="px-2 py-4 rounded-r-lg w-[5%]"></th>
               </tr>
             </thead>
-            <tbody className="divide-y">
-              {carrito.map((item) => (
-                <tr key={item.idUnico} className="hover:bg-gray-50">
-                  <td className="px-4 py-2">
+            <tbody className="divide-y divide-gray-100">
+              {carrito.map((item, index) => (
+                <tr key={item.idUnico} className="hover:bg-blue-50/40 relative group transition-colors">
+                  <td className="px-4 py-3 align-top">
+                    {/* INPUT DE BÚSQUEDA CON RENDER PERSONALIZADO */}
                     <SearchAndCreateInput<ProductoCatalogo>
-                      label="" // Sin label dentro de la tabla
-                      placeholder="Buscar producto..."
+                      label="" 
+                      placeholder="Buscar por Nombre o SKU..."
                       searchApiUrl="/api/productos"
                       displayField="descripcion"
                       inputValue={item.nombreProducto}
@@ -305,50 +433,86 @@ export function NuevaVentaForm() {
                         actualizarFila(item.idUnico, 'producto', p);
                         actualizarFila(item.idUnico, 'nombreProducto', p.descripcion);
                       }}
-                      onCreateNew={() => alert("Crear prod rápido")}
+                      onCreateNew={() => alert("Crear prod rápido (Pendiente)")}
+                      renderItem={renderProductoItem} // <-- AQUÍ PASAMOS EL RENDERIZADOR NUEVO
                     />
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-2 py-3 align-top text-center">
                     <input 
                       type="number" 
-                      className="w-full border rounded px-2 py-1"
+                      className="w-full min-w-[4rem] border-gray-300 rounded-lg py-2 text-center font-bold text-gray-700 focus:ring-blue-500 focus:border-blue-500"
                       value={item.cantidad === 0 ? '' : item.cantidad}
                       onChange={e => actualizarFila(item.idUnico, 'cantidad', Number(e.target.value))}
                       placeholder="0"
                     />
                   </td>
-                  <td className="px-4 py-2">
-                    <div className="relative">
-                      <span className="absolute left-2 top-1 text-gray-500">$</span>
-                      <input 
-                        type="number" 
-                        className="w-full border rounded pl-5 pr-2 py-1"
-                        value={item.precioUnitario === 0 ? '' : item.precioUnitario}
-                        onChange={e => actualizarFila(item.idUnico, 'precioUnitario', Number(e.target.value))}
-                      />
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex flex-col gap-2">
+                       {/* Switch Precio */}
+                       {item.producto && (
+                         <div className="flex bg-gray-100 rounded-lg p-1 w-full max-w-[200px]">
+                           <button
+                             type="button"
+                             onClick={() => cambiarTipoPrecio(item.idUnico, 'MENUDEO')}
+                             className={`flex-1 text-[10px] py-1 rounded-md font-bold transition-all ${
+                               item.tipoPrecio === 'MENUDEO' 
+                               ? 'bg-white text-gray-800 shadow-sm' 
+                               : 'text-gray-400 hover:text-gray-600'
+                             }`}
+                           >
+                             Público
+                           </button>
+                           <button
+                             type="button"
+                             onClick={() => cambiarTipoPrecio(item.idUnico, 'MAYOREO')}
+                             className={`flex-1 text-[10px] py-1 rounded-md font-bold transition-all ${
+                               item.tipoPrecio === 'MAYOREO' 
+                               ? 'bg-green-100 text-green-700 shadow-sm' 
+                               : 'text-gray-400 hover:text-gray-600'
+                             }`}
+                           >
+                             Mayoreo
+                           </button>
+                         </div>
+                       )}
+
+                       <div className="relative">
+                          <span className="absolute left-3 top-2 text-gray-400 text-xs">$</span>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            className={`w-full border rounded-lg pl-6 pr-3 py-1.5 transition-colors focus:ring-2 focus:ring-offset-1 ${
+                              item.tipoPrecio === 'MAYOREO' 
+                                ? 'border-green-300 bg-green-50 text-green-800 font-bold focus:ring-green-500' 
+                                : 'border-gray-300 text-gray-800 focus:ring-blue-500'
+                            }`}
+                            value={item.precioUnitario === 0 ? '' : item.precioUnitario}
+                            onChange={e => actualizarFila(item.idUnico, 'precioUnitario', Number(e.target.value))}
+                          />
+                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-2 font-bold text-gray-700">
-                    ${(item.cantidad * item.precioUnitario).toFixed(2)}
+                  <td className="px-4 py-3 font-bold text-gray-700 align-middle text-right text-lg">
+                    ${(item.cantidad * item.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="px-4 py-2 text-center">
+                  <td className="px-4 py-3 text-center align-middle">
                     <button
                       type="button"
                       onClick={() => abrirModalStock(item)}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors w-full flex items-center justify-center gap-1 ${
                         item.inventarioValidado 
-                          ? 'bg-green-100 text-green-700 border border-green-200' 
-                          : 'bg-red-100 text-red-700 border border-red-200 animate-pulse'
+                          ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
+                          : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
                       }`}
                     >
-                      {item.inventarioValidado ? 'Listo ✅' : 'Seleccionar Stock'}
+                      {item.inventarioValidado ? 'Listo' : 'Asignar'}
                     </button>
                   </td>
-                  <td className="px-4 py-2 text-center">
+                  <td className="px-2 py-3 text-center align-middle">
                     <button 
                       type="button" 
                       onClick={() => eliminarFila(item.idUnico)}
-                      className="text-red-500 hover:bg-red-50 p-1 rounded"
+                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -362,29 +526,28 @@ export function NuevaVentaForm() {
         <button
           type="button"
           onClick={agregarFila}
-          className="flex items-center gap-2 text-blue-600 font-medium hover:bg-blue-50 px-4 py-2 rounded transition-colors"
+          className="flex items-center gap-2 text-blue-600 font-bold hover:bg-blue-50 px-5 py-2.5 rounded-lg transition-colors border border-dashed border-blue-200 hover:border-blue-300 mt-2"
         >
-          <Plus size={18} /> Añadir Fila
+          <Plus size={20} /> Añadir Producto
         </button>
 
-        {/* Totales */}
-        <div className="flex justify-end border-t pt-4">
+        <div className="flex justify-end border-t border-gray-100 pt-6">
           <div className="w-64 space-y-2">
-            <div className="flex justify-between items-center text-lg font-bold text-gray-800">
+            <div className="flex justify-between items-center text-xl font-bold text-gray-800">
               <span>TOTAL</span>
-              <span>${totalVenta.toFixed(2)}</span>
+              <span>${totalVenta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer Actions */}
-      <div className="flex justify-between items-center">
-        <div className="flex-1">
-           <label className="block text-sm text-gray-600 mb-1">Nombre y Firma de quien expide</label>
+      {/* Footer */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex-1 w-full md:w-auto">
+           <label className="block text-sm text-gray-600 mb-1 font-medium">Nombre y Firma de quien expide</label>
            <input 
-             className="border rounded px-3 py-2 w-64" 
-             placeholder="Nombre completo"
+             className="border-gray-300 rounded-lg px-4 py-2.5 w-full md:w-80 focus:ring-blue-500 focus:border-blue-500" 
+             placeholder="Escribe el nombre completo..."
              value={quienExpide}
              onChange={e => setQuienExpide(e.target.value)}
            />
@@ -392,13 +555,12 @@ export function NuevaVentaForm() {
         <button
           type="submit"
           disabled={isSaving}
-          className="bg-blue-700 text-white px-8 py-3 rounded-lg shadow-lg hover:bg-blue-800 transition-transform transform active:scale-95 flex items-center gap-2 font-bold text-lg"
+          className="bg-blue-600 text-white px-10 py-3.5 rounded-xl shadow-lg hover:bg-blue-700 transition-all transform active:scale-[0.98] flex items-center gap-3 font-bold text-lg w-full md:w-auto justify-center"
         >
-          <Save size={24} /> {isSaving ? 'Procesando...' : 'Generar Nota de Venta'}
+          <Save size={24} /> {isSaving ? 'Guardando...' : 'Generar Nota de Venta'}
         </button>
       </div>
 
-      {/* Modales */}
       <PersonaFormModal 
         isOpen={isClienteModalOpen}
         onClose={() => setIsClienteModalOpen(false)}

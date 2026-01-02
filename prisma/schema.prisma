@@ -43,6 +43,7 @@ model Aserradero {
   ajustes_inventario        AjusteInventario[]
   vehiculos                 Vehiculo[]  @relation("AserraderoVehiculos")
   predios                   Predio[]  @relation("AserraderoPredios")
+  precios_base             PrecioBaseMadera[] 
 }
 
 model Rol {
@@ -105,10 +106,14 @@ model ProductoCatalogo {
   descripcion      String
   tipo_categoria   String // 'MADERA_ASERRADA' o 'TRIPLAY_AGLOMERADO'
   unidad_medida    String? // 'Pieza', 'Pie tablar', 'm3'
-  precio_venta     Decimal
+  precio_venta     Decimal @db.Decimal(10, 2) // Precio Menudeo (Público)
+  precio_mayoreo   Decimal? @db.Decimal(10, 2) // Precio mayoreo
   precio_compra    Decimal?
   activo           Boolean  @default(true)
-  
+   // --- NUEVO CAMPO ---
+  // Indica si el precio se calcula solo o si el usuario lo puso manual
+  es_precio_automatico Boolean @default(true)
+
   aserradero       Aserradero @relation(fields: [id_aserradero], references: [id_aserradero])
   atributos_madera AtributosMadera?
   atributos_triplay AtributosTriplay?
@@ -143,6 +148,30 @@ model AtributosTriplay {
 
   producto ProductoCatalogo @relation(fields: [id_producto_catalogo], references: [id_producto_catalogo], onDelete: Cascade)
 }
+
+// Lista de Precios Base
+// Esta tabla define "A cómo se cobra el pie tablar hoy"
+model PrecioBaseMadera {
+  id_precio_base      Int      @id @default(autoincrement())
+  id_aserradero       Int
+  
+  // Claves de búsqueda (Indices compuestos)
+  especie             String   // Ej: "Pino", "Oyamel", "Encino"
+  calidad             String   // Ej: "Primera", "Segunda", "Tercera", "Mill Run"
+  
+  // El valor monetario por unidad (Pie Tablar)
+  precio_por_pt       Decimal  @db.Decimal(10, 2) // Precio base menudeo (publico)
+  precio_mayoreo_por_pt Decimal? @db.Decimal(10, 2) // Precio base mayoreo
+
+  fecha_actualizacion DateTime @default(now())
+  
+  // Relación con el aserradero (Multi-tenant)
+  aserradero          Aserradero @relation(fields: [id_aserradero], references: [id_aserradero])
+
+  // Restricción única para evitar duplicados de reglas
+  @@unique([id_aserradero, especie, calidad])
+}
+
 
 model ArrivoInventario {
   id_arrivo               Int       @id @default(autoincrement())
@@ -204,8 +233,6 @@ model MovimientoInventario {
   responsable   Usuario                @relation(fields: [id_responsable_usuario], references: [id_usuario], onDelete: Restrict)
   nota_venta    NotaVenta?             @relation(fields: [id_nota_venta_salida], references: [id_nota_venta])
 }
-
-
 
 // =================================================================
 // SECCIÓN 3: PERSONAS Y VEHÍCULOS
@@ -344,6 +371,8 @@ model Reembarque {
   vehiculo     Vehiculo?  @relation(fields: [id_vehiculo], references: [id_vehiculo], onDelete: SetNull)
   chofer       Persona?   @relation("ChoferReembarque", fields: [id_chofer], references: [id_persona], onDelete: SetNull)
 
+  notas_venta NotaVenta[] 
+
   @@index([id_aserradero, fecha_emision])
 }
 
@@ -360,6 +389,11 @@ model NotaVenta {
   id_cliente        Int
   total_venta       Decimal  @db.Decimal(12, 2)
   tipo_pago         String
+  // Para saber a quién se le depositó (si es transferencia)
+  cuenta_destino_transferencia String?
+  // Relación opcional con un Reembarque (documento legal)
+  id_reembarque_asociado Int?
+
   pagado            Boolean  @default(false) // estado de pago
 
 //// No se si utilizaré estos campos de abajo pero los dejo por si acaso
@@ -369,6 +403,7 @@ model NotaVenta {
   //total             Decimal
   //tipo_pago         String
 
+  reembarque_asociado       Reembarque? @relation(fields: [id_reembarque_asociado], references: [id_reembarque])
   aserradero Aserradero     @relation(fields: [id_aserradero], references: [id_aserradero])
   cliente    Persona        @relation("ClienteNotaVenta", fields: [id_cliente], references: [id_persona], onDelete: Restrict)
   turno      TurnoCaja?     @relation(fields: [id_turno], references: [id_turno], onDelete: SetNull)
