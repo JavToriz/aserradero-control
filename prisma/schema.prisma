@@ -22,9 +22,20 @@ datasource db {
 model Aserradero {
   id_aserradero Int    @id @default(autoincrement())
   nombre        String @unique
-  direccion     String?
+  
   telefono      String?
+  telefono2     String?
   fecha_creacion DateTime @default(now())
+
+  // --- CAMPOS NUEVOS PARA IMPRESIÓN / MULTITENANT ---
+  direccion         String? // Dirección completa (se usará para nota de venta)
+  propietario       String? // Ej: HERMENEGILDO BADILLO CRUZ
+  rfc               String? // Ej: BACH780413IZA
+  curp              String? // Ej: BACH780413HPLDRR07
+  rfn               String? // Registro Forestal Nacional
+  c_i               String? // Código Industrial
+  logo_url          String? // URL o path de la imagen
+  ciudad_estado     String? // Ej: HUASCA DE OCAMPO, HGO. (Para recibos)
 
   usuarios_predeterminados Usuario[]           @relation("AserraderoPredeterminado")
   usuarios_asignados       UsuarioAserradero[]

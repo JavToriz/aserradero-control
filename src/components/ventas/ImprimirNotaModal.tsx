@@ -1,9 +1,9 @@
-// components/ventas/ImprimirNotaModal.tsx
 'use client';
 
+import { useState, useEffect } from 'react';
 import { ModalContainer } from '@/components/ui/ModalContainer';
-import { NotaVentaImprimible } from './NotaVentaImprimible';
-import { Printer, X } from 'lucide-react';
+import { NotaVentaImprimible, DatosEmpresaNota } from './NotaVentaImprimible';
+import { Printer, X, Loader2 } from 'lucide-react';
 
 interface ImprimirNotaModalProps {
   isOpen: boolean;
@@ -12,6 +12,42 @@ interface ImprimirNotaModalProps {
 }
 
 export const ImprimirNotaModal = ({ isOpen, onClose, venta }: ImprimirNotaModalProps) => {
+  const [empresaConfig, setEmpresaConfig] = useState<DatosEmpresaNota | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      const fetchConfig = async () => {
+        try {
+          // CORRECCIÓN: 'sessionToken'
+          const token = localStorage.getItem('sessionToken'); 
+          
+          if (!token) {
+             console.error("No se encontró sessionToken");
+             setLoading(false);
+             return;
+          }
+
+          const res = await fetch('/api/configuracion/aserradero', {
+             headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            setEmpresaConfig(data);
+          }
+        } catch (error) {
+          console.error(error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchConfig();
+    }
+  }, [isOpen]);
+
   if (!isOpen || !venta) return null;
 
   const datosFormateados = {
@@ -35,11 +71,19 @@ export const ImprimirNotaModal = ({ isOpen, onClose, venta }: ImprimirNotaModalP
     <ModalContainer title={`Nota de Venta: ${venta.folio_nota}`} onClose={onClose}>
       <div className="space-y-6">
         
-        {/* Contenedor visual */}
-        <div className="border rounded bg-gray-100 p-4 overflow-auto max-h-[60vh] flex justify-center">
-           <div className="bg-white shadow-sm mx-auto" style={{ width: '800px', maxWidth: '100%' }}> 
-             <NotaVentaImprimible datos={datosFormateados} />
-           </div>
+        <div className="border rounded bg-gray-100 p-4 overflow-auto max-h-[60vh] flex justify-center items-center min-h-[300px]">
+           
+           {loading && <Loader2 className="animate-spin text-blue-600 w-10 h-10" />}
+
+           {!loading && empresaConfig && (
+             <div className="bg-white shadow-sm mx-auto" style={{ width: '800px', maxWidth: '100%' }}> 
+               <NotaVentaImprimible datos={datosFormateados} empresa={empresaConfig} />
+             </div>
+           )}
+
+           {!loading && !empresaConfig && (
+              <p className="text-red-500 font-bold">Error: No se pudo cargar la configuración del aserradero.</p>
+           )}
         </div>
 
         <div className="flex justify-center gap-4 pt-2 border-t">
@@ -52,7 +96,8 @@ export const ImprimirNotaModal = ({ isOpen, onClose, venta }: ImprimirNotaModalP
 
           <button 
             onClick={() => window.print()} 
-            className="bg-blue-600 text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-700 shadow-md transition-colors"
+            disabled={loading || !empresaConfig}
+            className="bg-blue-600 text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50"
           >
             <Printer size={20} /> Imprimir / Guardar como PDF
           </button>
