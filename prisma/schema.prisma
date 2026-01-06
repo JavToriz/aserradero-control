@@ -54,7 +54,8 @@ model Aserradero {
   ajustes_inventario        AjusteInventario[]
   vehiculos                 Vehiculo[]  @relation("AserraderoVehiculos")
   predios                   Predio[]  @relation("AserraderoPredios")
-  precios_base             PrecioBaseMadera[] 
+  precios_base              PrecioBaseMadera[] 
+  ajustes_patio             AjustePatio[]
 }
 
 model Rol {
@@ -82,6 +83,7 @@ model Usuario {
   movimientos_inventario_responsable MovimientoInventario[]
   recibos_gasto_responsable  ReciboGasto[] @relation("ResponsableGasto")
   ajustes_inventario_realizados AjusteInventario[]
+  ajustes_patio_realizados AjustePatio[]
 }
 
 // Tabla intermedia para asignar usuarios a aserraderos (Muchos a Muchos)
@@ -243,6 +245,22 @@ model MovimientoInventario {
   stock_item    StockProductoTerminado @relation(fields: [id_stock_afectado], references: [id_stock], onDelete: Cascade)
   responsable   Usuario                @relation(fields: [id_responsable_usuario], references: [id_usuario], onDelete: Restrict)
   nota_venta    NotaVenta?             @relation(fields: [id_nota_venta_salida], references: [id_nota_venta])
+}
+model AjustePatio {
+  id_ajuste     Int      @id @default(autoincrement())
+  id_aserradero Int
+  id_usuario    Int      // Quién hizo el ajuste
+  fecha         DateTime @default(now())
+  
+  tipo_balance  String   // 'FISICO' o 'DOCUMENTADO' (Aunque documentado raramente se ajusta sin papel)
+  tipo_ajuste   String   // 'INICIAL', 'AUDITORIA', 'MERMA', 'CORRECCION'
+  volumen       Decimal  // Puede ser positivo (entrada) o negativo (salida)
+  observaciones String?
+
+  aserradero    Aserradero @relation(fields: [id_aserradero], references: [id_aserradero])
+  usuario       Usuario    @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@index([id_aserradero])
 }
 
 // =================================================================

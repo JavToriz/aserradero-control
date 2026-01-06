@@ -4,9 +4,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Warehouse, Package, Truck, Minus, GitBranch, Search, Filter, Trees } from 'lucide-react';
+import { Plus, Warehouse, Package, Minus, GitBranch, Search, Trees, Settings2 } from 'lucide-react';
 import { InventarioKanban } from '@/components/produccion/InventarioKanban';
 import { MoverStockModal } from '@/components/produccion/MoverStockModal';
+import { BalanceCard } from '@/components/produccion/BalanceCard'; // <--- IMPORTACIÓN NUEVA
+import { AjustePatioModal } from '@/components/produccion/AjustePatioModal';
 import * as Tabs from '@radix-ui/react-tabs';
 
 // --- TIPOS ---
@@ -51,6 +53,15 @@ export default function ProduccionDashboardPage() {
   const [filtroGenero, setFiltroGenero] = useState('TODOS');
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
   const [filtroClasificacion, setFiltroClasificacion] = useState('TODOS');
+
+  // Estado para el modal de ajuste de patio
+  const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false);
+  const handleAjusteSuccess = () => {
+    // Recargar datos (truco simple: forzar update o llamar fetchData)
+    // Como BalanceCard tiene su propio fetch interno, idealmente pasamos una prop "key" o un "trigger"
+    // Pero por simplicidad, recargaremos toda la página o usaremos router.refresh()
+    window.location.reload(); 
+  };
 
   // Carga de Datos
   const fetchData = useCallback(async () => {
@@ -199,14 +210,14 @@ export default function ProduccionDashboardPage() {
             value="patio" 
             className="px-6 py-3 text-gray-600 data-[state=active]:border-b-2 data-[state=active]:border-green-600 data-[state=active]:text-green-600 font-medium flex items-center gap-2 transition-colors hover:text-gray-800"
           >
-            <Trees size={18} /> Inventario de Patio (Materia Prima)
+            <Trees size={18} /> Inventario de Patio
           </Tabs.Trigger>
         </Tabs.List>
 
         {/* CONTENIDO: KANBAN (PROCESO) */}
         <Tabs.Content value="proceso" className="pt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
           
-          {/* BARRA DE FILTROS AVANZADA */}
+          {/* BARRA DE FILTROS (EXISTENTE) */}
           <div className="bg-white p-4 rounded-xl shadow-sm border mb-6 flex flex-col md:flex-row gap-4 items-center">
             {/* Buscador Texto */}
             <div className="flex-1 w-full relative">
@@ -273,43 +284,29 @@ export default function ProduccionDashboardPage() {
           )}
         </Tabs.Content>
 
-        {/* CONTENIDO: PATIO (MATERIA PRIMA) */}
+        {/* CONTENIDO: PATIO (MATERIA PRIMA) - AQUÍ ESTÁ EL CAMBIO */}
         <Tabs.Content value="patio" className="pt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-700">Balance General</h2>
+                <button 
+                    onClick={() => setIsAjusteModalOpen(true)}
+                    className="flex items-center gap-2 text-sm bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 shadow-sm transition-colors"
+                >
+                    <Settings2 size={16} />
+                    Realizar Ajuste Manual
+                </button>
+            </div>
             
-            {/* Tarjeta Resumen Total */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border flex flex-col items-center justify-center text-center h-full min-h-[300px]">
-              <div className="bg-green-100 p-6 rounded-full mb-6">
-                <Trees size={64} className="text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Total en Patio</h2>
-              <p className="text-5xl font-extrabold text-green-700 mb-4">{kpis ? kpis.m3EnPatio : '...'} <span className="text-xl font-medium text-gray-500">m³</span></p>
-              <p className="text-gray-500 max-w-sm">
-                Volumen neto disponible de materia prima (entradas por remisión - salidas por consumo).
-              </p>
-            </div>
+            {/* Componente Nuevo de Balance */}
+            <BalanceCard />
 
-            {/* Desglose por Especie (Si la API lo soporta en el futuro) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Desglose Estimado</h3>
-              {/* Aquí podrías mapear kpis.desglosePatio si actualizas la API */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="font-medium text-gray-700">Pino</span>
-                  <span className="font-bold text-gray-900">{kpis ? kpis.m3EnPatio : '...'} m³</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg opacity-50">
-                  <span className="font-medium text-gray-700">Encino</span>
-                  <span className="font-bold text-gray-900">0.000 m³</span>
-                </div>
-                {/* Placeholder para más especies */}
-                <div className="p-4 text-center text-sm text-gray-400 italic">
-                  El desglose detallado por especie estará disponible próximamente.
-                </div>
-              </div>
+            <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Información Adicional</h3>
+                <p className="text-sm text-gray-500">
+                    El balance "Documentado" se calcula a partir de las Remisiones (entradas) y Reembarques (salidas) registrados ante la autoridad.
+                    El balance "Físico" se calcula a partir de la medición real de las Remisiones al ingreso y el consumo reportado en ventas.
+                </p>
             </div>
-
-          </div>
         </Tabs.Content>
       </Tabs.Root>
 
@@ -323,11 +320,16 @@ export default function ProduccionDashboardPage() {
           mode={moveMode}
         />
       )}
+      <AjustePatioModal 
+      isOpen={isAjusteModalOpen}
+      onClose={() => setIsAjusteModalOpen(false)}
+      onSuccess={handleAjusteSuccess}
+      />
     </div>
   );
 }
 
-// Componente KpiCard Mejorado
+// Componente KpiCard 
 const KpiCard: React.FC<{ title: string; value: string | number; unit: string; icon: React.ReactNode; color?: string }> = ({ title, value, unit, icon, color = 'bg-gray-100' }) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border flex items-center gap-5 transition-transform hover:scale-[1.01]">
     <div className={`flex-shrink-0 p-4 rounded-xl ${color}`}>

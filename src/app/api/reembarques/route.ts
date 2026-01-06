@@ -1,28 +1,39 @@
-// app/api/reembarques/route.ts
+// src/app/api/reembarques/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
 
-// GET: Listar reembarques
 export async function GET(req: NextRequest) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 
+  // --- CORRECCIÓN: Leer el parámetro de búsqueda 'q' ---
+  const { searchParams } = new URL(req.url);
+  const query = searchParams.get('query') || '';
+
   try {
     const reembarques = await prisma.reembarque.findMany({
       where: {
         id_aserradero: authPayload.aserraderoId,
+        // Si hay query, filtramos por folio
+        ...(query ? {
+          folio_progresivo: {
+            contains: query,
+            mode: 'insensitive' // Búsqueda sin distinguir mayúsculas
+          }
+        } : {})
       },
       include: {
         destinatario: { select: { nombre_completo: true } },
-        remitente: { select: { nombre_completo: true } }, // En reembarque, el remitente solemos ser nosotros o el titular original
+        remitente: { select: { nombre_completo: true } },
         vehiculo: { select: { matricula: true, marca: true } },
       },
       orderBy: {
         fecha_emision: 'desc',
       },
+      take: 20 // Limitar resultados para no saturar el select
     });
     return NextResponse.json(reembarques);
   } catch (error) {
@@ -31,7 +42,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Crear reembarque
 export async function POST(req: Request) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
@@ -54,8 +64,8 @@ export async function POST(req: Request) {
       saldo_disponible_anterior,
       saldo_restante,
       volumen_total_m3,
-      id_documento_origen, // ID de la remisión/reembarque origen
-      tipo_documento_origen // 'REMISION' o 'REEMBARQUE'
+      id_documento_origen,
+      tipo_documento_origen
     } = body;
 
     // Validación básica
@@ -63,8 +73,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Folio y fecha son requeridos' }, { status: 400 });
     }
 
-    // FIX FECHA
-    const fechaISO = new Date(`${fecha_emision}T12:00:00Z`).toISOString();
+    const fechaISO = new Date(fecha_emision).toISOString();
 
     const nuevoReembarque = await prisma.reembarque.create({
       data: {
