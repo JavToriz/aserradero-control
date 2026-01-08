@@ -1,19 +1,83 @@
-// app/(dashboard)/gastos/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Printer, Search, Truck, Filter, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Printer, Search, Truck, Filter, CheckCircle, Clock, Trees, ChevronDown, ChevronUp, Calendar, XCircle } from 'lucide-react';
 import { ImprimirReciboModal } from '@/components/gastos/ImprimirReciboModal';
 import * as Tabs from '@radix-ui/react-tabs';
 
+// Definición de tipos
+type Gasto = {
+  id_recibo_gasto: number;
+  fecha_emision: string;
+  monto: number;
+  concepto_general: string;
+  estado_pago: string;
+  documento_asociado_id: number | null;
+  folio_remision_asociada?: string | null;
+  beneficiario: { nombre_completo: string };
+  [key: string]: any;
+};
+
+type GrupoRemision = {
+  id_remision: number;
+  folio_visual: string;
+  proveedor: string;
+  pagos: Gasto[];
+  totalPagado: number;
+  ultimoPago: string;
+};
+
+// --- HELPER PARA FECHAS ---
+const isDateInRange = (dateString: string, filter: string): boolean => {
+  const d = new Date(dateString);
+  // Ajustamos la fecha para evitar problemas de zona horaria al tomar solo YYYY-MM-DD
+  // Asumimos que dateString viene como 'YYYY-MM-DD' o ISO
+  const dateToCheck = new Date(d.getFullYear(), d.getMonth(), d.getDate()); 
+  
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (filter) {
+    case 'hoy':
+      return dateToCheck.getTime() === today.getTime();
+    
+    case 'ayer':
+      const ayer = new Date(today);
+      ayer.setDate(ayer.getDate() - 1);
+      return dateToCheck.getTime() === ayer.getTime();
+
+    case 'semana': {
+      // Obtener el primer día de la semana (Lunes o Domingo según config, usaremos Domingo aqui)
+      const firstDay = new Date(today);
+      firstDay.setDate(today.getDate() - today.getDay()); 
+      return dateToCheck >= firstDay;
+    }
+
+    case 'mes':
+      return dateToCheck.getMonth() === today.getMonth() && 
+             dateToCheck.getFullYear() === today.getFullYear();
+    
+    case 'anio':
+      return dateToCheck.getFullYear() === today.getFullYear();
+
+    default: // 'todos'
+      return true;
+  }
+};
+
 export default function GastosPage() {
-  const [gastos, setGastos] = useState<any[]>([]);
+  const [gastos, setGastos] = useState<Gasto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState('');
+  
+  // Filtros
+  const [filtroTexto, setFiltroTexto] = useState('');
   const [activeTab, setActiveTab] = useState('todos');
-  const [estadoFiltro, setEstadoFiltro] = useState('todos'); 
+  const [estadoFiltro, setEstadoFiltro] = useState('todos');
+  const [dateFilter, setDateFilter] = useState('mes'); // Por defecto 'mes' para mejor UX
+  
   const [gastoParaImprimir, setGastoParaImprimir] = useState<any | null>(null);
+  const [expandedRemisiones, setExpandedRemisiones] = useState<Record<number, boolean>>({});
 
   const fetchGastos = async () => {
     const token = localStorage.getItem('sessionToken');
@@ -33,11 +97,10 @@ export default function GastosPage() {
 
   const toggleEstadoPago = async (gasto: any) => {
     if (gasto.concepto_general !== 'FLETE') return;
-
     const nuevoEstado = gasto.estado_pago === 'PAGADO' ? 'PENDIENTE' : 'PAGADO';
     const token = localStorage.getItem('sessionToken');
-
     const gastosPrevios = [...gastos];
+    
     setGastos(prev => prev.map(g => g.id_recibo_gasto === gasto.id_recibo_gasto ? { ...g, estado_pago: nuevoEstado } : g));
 
     try {
@@ -49,9 +112,7 @@ export default function GastosPage() {
         },
         body: JSON.stringify({ estado_pago: nuevoEstado })
       });
-
       if (!res.ok) throw new Error('Falló la actualización');
-      
     } catch (error) {
       console.error(error);
       setGastos(gastosPrevios);
@@ -59,148 +120,329 @@ export default function GastosPage() {
     }
   };
 
-  const gastosFiltrados = gastos.filter(g => {
-    const coincideTexto = g.beneficiario.nombre_completo.toLowerCase().includes(filtro.toLowerCase()) ||
-                          g.concepto_general.toLowerCase().includes(filtro.toLowerCase());
+  const toggleAccordion = (id: number) => {
+    setExpandedRemisiones(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // --- LÓGICA CENTRAL DE FILTRADO ---
+  const { datosFiltrados, totalFiltrado } = useMemo(() => {
+    const filtrados = gastos.filter(g => {
+      const textoBusqueda = filtroTexto.toLowerCase();
+      
+      // 1. Filtro Texto
+      const coincideTexto = g.beneficiario.nombre_completo.toLowerCase().includes(textoBusqueda) ||
+                            g.concepto_general.toLowerCase().includes(textoBusqueda) ||
+                            (g.folio_remision_asociada || '').toLowerCase().includes(textoBusqueda) ||
+                            (g.documento_asociado_id?.toString() || '').includes(textoBusqueda);
+      
+      // 2. Filtro Tab (Tipo)
+      const coincideTipo = activeTab === 'todos' || 
+                           (activeTab === 'fletes' && g.concepto_general === 'FLETE') ||
+                           (activeTab === 'madera' && g.concepto_general === 'PAGO DE MADERA');
+
+      // 3. Filtro Estado Pago
+      const coincideEstado = estadoFiltro === 'todos' || 
+                             (estadoFiltro === 'pagado' && g.estado_pago === 'PAGADO') ||
+                             (estadoFiltro === 'pendiente' && g.estado_pago === 'PENDIENTE');
+
+      // 4. NUEVO: Filtro Fecha
+      const coincideFecha = isDateInRange(g.fecha_emision, dateFilter);
+
+      return coincideTexto && coincideTipo && coincideEstado && coincideFecha;
+    });
+
+    // Calcular Total Monetario de la vista actual
+    const total = filtrados.reduce((acc, curr) => acc + Number(curr.monto), 0);
+
+    return { datosFiltrados: filtrados, totalFiltrado: total };
+  }, [gastos, filtroTexto, activeTab, estadoFiltro, dateFilter]);
+
+
+  // --- AGRUPACIÓN PARA VISTA MADERA ---
+  const gruposMadera = useMemo(() => {
+    if (activeTab !== 'madera') return [];
     
-    const coincideTipo = activeTab === 'todos' || (activeTab === 'fletes' && g.concepto_general === 'FLETE');
+    const grupos: Record<number, GrupoRemision> = {};
+    
+    datosFiltrados.forEach(g => {
+      const idKey = g.documento_asociado_id || 0;
+      if (!grupos[idKey]) {
+        grupos[idKey] = {
+          id_remision: idKey,
+          folio_visual: g.folio_remision_asociada || (idKey > 0 ? `#${idKey} (Sin Folio)` : 'Sin Referencia'),
+          proveedor: g.beneficiario.nombre_completo,
+          pagos: [],
+          totalPagado: 0,
+          ultimoPago: g.fecha_emision
+        };
+      }
+      grupos[idKey].pagos.push(g);
+      grupos[idKey].totalPagado += Number(g.monto);
+      if (new Date(g.fecha_emision) > new Date(grupos[idKey].ultimoPago)) {
+          grupos[idKey].ultimoPago = g.fecha_emision;
+      }
+    });
 
-    const coincideEstado = estadoFiltro === 'todos' || 
-                           (estadoFiltro === 'pagado' && g.estado_pago === 'PAGADO') ||
-                           (estadoFiltro === 'pendiente' && g.estado_pago === 'PENDIENTE');
+    return Object.values(grupos).sort((a, b) => 
+      new Date(b.ultimoPago).getTime() - new Date(a.ultimoPago).getTime()
+    );
+  }, [datosFiltrados, activeTab]);
 
-    return coincideTexto && coincideTipo && coincideEstado;
-  });
+
+  // --- RENDERS ---
+  const renderTablaGeneral = () => (
+    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <table className="w-full text-sm text-left">
+        <thead className="bg-gray-100 text-gray-700 uppercase font-semibold">
+            <tr>
+            <th className="px-6 py-3">Fecha</th>
+            <th className="px-6 py-3">Beneficiario</th>
+            <th className="px-6 py-3">Concepto</th>
+            <th className="px-6 py-3">Monto</th>
+            <th className="px-6 py-3 text-center">Estado</th>
+            <th className="px-6 py-3 text-center">Acciones</th>
+            </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+            {datosFiltrados.map((g) => (
+            <tr key={g.id_recibo_gasto} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 text-gray-600">{new Date(g.fecha_emision).toLocaleDateString()}</td>
+                <td className="px-6 py-4 font-medium text-gray-800">{g.beneficiario.nombre_completo}</td>
+                <td className="px-6 py-4">
+                <div className="flex flex-col">
+                    <span className={`w-fit px-2 py-0.5 rounded-full text-xs font-bold ${
+                    g.concepto_general === 'FLETE' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                    {g.concepto_general}
+                    </span>
+                    {g.folio_remision_asociada ? (
+                       <span className="text-xs text-blue-600 font-medium mt-1">Ref: {g.folio_remision_asociada}</span>
+                    ) : g.documento_asociado_id && (
+                       <span className="text-xs text-gray-400 mt-1">ID Ref: {g.documento_asociado_id}</span>
+                    )}
+                </div>
+                </td>
+                <td className="px-6 py-4 font-bold text-red-600">
+                ${Number(g.monto).toFixed(2)}
+                </td>
+                <td className="px-6 py-4 text-center">
+                {g.concepto_general === 'FLETE' ? (
+                    <button
+                    onClick={() => toggleEstadoPago(g)}
+                    className={`flex items-center justify-center gap-1 px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
+                        g.estado_pago === 'PAGADO' 
+                        ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
+                        : 'bg-yellow-100 text-yellow-700 border border-yellow-200 hover:bg-yellow-200'
+                    }`}
+                    >
+                    {g.estado_pago === 'PAGADO' ? <><CheckCircle size={14} /> PAGADO</> : <><Clock size={14} /> PENDIENTE</>}
+                    </button>
+                ) : (
+                    <span className="text-gray-300 text-xs">-</span>
+                )}
+                </td>
+                <td className="px-6 py-4 text-center">
+                <button 
+                    onClick={() => setGastoParaImprimir(g)}
+                    className="text-gray-500 hover:text-blue-600 transition-colors"
+                    title="Ver Recibo"
+                >
+                    <Printer size={18} />
+                </button>
+                </td>
+            </tr>
+            ))}
+        </tbody>
+        </table>
+        {datosFiltrados.length === 0 && (
+            <div className="p-8 text-center text-gray-400 flex flex-col items-center gap-2">
+                <Search size={48} className="text-gray-200" />
+                <p>No se encontraron gastos con los filtros actuales.</p>
+                {dateFilter !== 'todos' && (
+                    <button onClick={() => setDateFilter('todos')} className="text-blue-600 text-sm hover:underline">
+                        Ver todo el historial
+                    </button>
+                )}
+            </div>
+        )}
+    </div>
+  );
+
+  const renderVistaMadera = () => {
+    if (gruposMadera.length === 0) {
+        return (
+            <div className="p-12 text-center text-gray-400 border-2 border-dashed rounded-xl bg-gray-50/50">
+                <Trees size={48} className="mx-auto mb-2 text-gray-300" />
+                <p>No hay pagos de madera en el periodo seleccionado.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid grid-cols-1 gap-4">
+            {gruposMadera.map((grupo) => {
+                const isExpanded = expandedRemisiones[grupo.id_remision];
+                return (
+                    <div key={grupo.id_remision} className="bg-white border rounded-xl shadow-sm overflow-hidden transition-all hover:shadow-md">
+                        <div 
+                            onClick={() => toggleAccordion(grupo.id_remision)}
+                            className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between cursor-pointer bg-gray-50 hover:bg-white transition-colors"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="bg-blue-100 p-2 rounded-lg text-blue-700">
+                                    <Trees size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">
+                                        {grupo.id_remision === 0 ? 'Pagos Sin Referencia' : `Remisión: ${grupo.folio_visual}`}
+                                    </h3>
+                                    <p className="text-sm text-gray-500 font-medium">{grupo.proveedor}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-6 mt-4 md:mt-0">
+                                <div className="text-right">
+                                    <p className="text-xs text-gray-500 uppercase">Abonado (Periodo)</p>
+                                    <p className="text-xl font-bold text-green-600">${grupo.totalPagado.toFixed(2)}</p>
+                                </div>
+                                <div className="text-gray-400">
+                                    {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </div>
+                            </div>
+                        </div>
+
+                        {isExpanded && (
+                            <div className="border-t bg-white p-4 animate-in slide-in-from-top-2 duration-200">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-3 flex items-center gap-2">
+                                    <Calendar size={14}/> Historial de Pagos (Filtrado)
+                                </h4>
+                                <div className="space-y-2">
+                                    {grupo.pagos.map((pago, idx) => (
+                                        <div key={pago.id_recibo_gasto} className="flex justify-between items-center p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-gray-700">Abono</span>
+                                                <span className="text-xs text-gray-400">{new Date(pago.fecha_emision).toLocaleDateString()}</span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="font-bold text-gray-700">${Number(pago.monto).toFixed(2)}</span>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setGastoParaImprimir(pago); }}
+                                                    className="text-gray-400 hover:text-blue-600 p-1 rounded-full hover:bg-blue-50"
+                                                    title="Imprimir"
+                                                >
+                                                    <Printer size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+  };
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
-      <header className="flex justify-between items-center mb-6">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Gastos y Egresos</h1>
-          <p className="text-gray-500">Control de recibos de dinero.</p>
+          <p className="text-gray-500">Gestión de flujo de efectivo.</p>
         </div>
-        <Link href="/gastos/nuevo" passHref>
-          <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors shadow-sm">
-            <Plus size={20} /> Nuevo Gasto
-          </button>
-        </Link>
+        
+        <div className="flex gap-3">
+             {/* Indicador de Total Filtrado - ¡Gran UX! */}
+            <div className="bg-white px-4 py-2 rounded-lg border shadow-sm text-right hidden md:block">
+                <p className="text-xs text-gray-400 uppercase font-bold">Total en Pantalla</p>
+                <p className="text-lg font-normal text-gray-600">${totalFiltrado.toFixed(2)}</p>
+            </div>
+
+            <Link href="/gastos/nuevo" passHref>
+            <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors shadow-sm h-full">
+                <Plus size={20} /> <span className="hidden sm:inline">Nuevo Gasto</span>
+            </button>
+            </Link>
+        </div>
       </header>
 
+      {/* TABS DE NAVEGACIÓN */}
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <Tabs.List className="flex border-b border-gray-200">
-          <Tabs.Trigger value="todos" className="px-4 py-2 text-gray-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 font-medium">
+        <Tabs.List className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
+          <Tabs.Trigger value="todos" className="px-4 py-2 text-gray-600 border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 font-medium whitespace-nowrap">
             Todos los Gastos
           </Tabs.Trigger>
-          <Tabs.Trigger value="fletes" className="px-4 py-2 text-gray-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 font-medium flex items-center gap-2">
+          <Tabs.Trigger value="fletes" className="px-4 py-2 text-gray-600 border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 font-medium flex items-center gap-2 whitespace-nowrap">
             <Truck size={16} /> Fletes
+          </Tabs.Trigger>
+          <Tabs.Trigger value="madera" className="px-4 py-2 text-gray-600 border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 font-medium flex items-center gap-2 whitespace-nowrap">
+            <Trees size={16} /> Pagos de Madera
           </Tabs.Trigger>
         </Tabs.List>
       </Tabs.Root>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border flex-1">
+      {/* BARRA DE FILTROS SUPERIOR */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+        
+        {/* 1. Buscador (Ocupa más espacio) */}
+        <div className="md:col-span-5 bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border">
           <Search className="text-gray-400" size={20} />
           <input 
             type="text" 
-            placeholder="Buscar por beneficiario o concepto..." 
-            className="flex-1 outline-none text-gray-700"
-            value={filtro}
-            onChange={e => setFiltro(e.target.value)}
+            placeholder={activeTab === 'madera' ? "Buscar remisión o beneficiario..." : "Buscar beneficiario, concepto..."} 
+            className="flex-1 outline-none text-gray-700 w-full"
+            value={filtroTexto}
+            onChange={e => setFiltroTexto(e.target.value)}
           />
+          {filtroTexto && (
+             <button onClick={() => setFiltroTexto('')} className="text-gray-400 hover:text-gray-600"><XCircle size={16}/></button>
+          )}
         </div>
 
-        <div className="bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border w-full md:w-auto">
-          <Filter className="text-gray-400" size={20} />
+        {/* 2. Filtro de Fecha (NUEVO) */}
+        <div className="md:col-span-4 bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border">
+          <Calendar className="text-gray-400" size={20} />
           <select 
-            value={estadoFiltro}
-            onChange={(e) => setEstadoFiltro(e.target.value)}
-            className="outline-none text-gray-700 bg-transparent cursor-pointer"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="outline-none text-gray-700 bg-transparent cursor-pointer w-full font-medium"
           >
-            <option value="todos">Todos los Estados</option>
-            <option value="pendiente">⏳ Pendientes</option>
-            <option value="pagado">✅ Pagados</option>
+            <option value="hoy">Hoy</option>
+            <option value="ayer">Ayer</option>
+            <option value="semana">Esta Semana</option>
+            <option value="mes">Este Mes</option>
+            <option value="anio">Este Año</option>
+            <option value="todos">Todo el Historial</option>
           </select>
         </div>
+
+        {/* 3. Filtro de Estado (Solo si no es madera, o también para madera si se requiere) */}
+        {activeTab !== 'madera' && (
+            <div className="md:col-span-3 bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border">
+            <Filter className="text-gray-400" size={20} />
+            <select 
+                value={estadoFiltro}
+                onChange={(e) => setEstadoFiltro(e.target.value)}
+                className="outline-none text-gray-700 bg-transparent cursor-pointer w-full"
+            >
+                <option value="todos">Todos los Estados</option>
+                <option value="pendiente">⏳ Pendientes</option>
+                <option value="pagado">✅ Pagados</option>
+            </select>
+            </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        {loading ? <div className="p-8 text-center">Cargando...</div> : (
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-100 text-gray-700 uppercase font-semibold">
-              <tr>
-                <th className="px-6 py-3">Fecha</th>
-                <th className="px-6 py-3">Beneficiario</th>
-                <th className="px-6 py-3">Concepto</th>
-                <th className="px-6 py-3">Monto</th>
-                <th className="px-6 py-3 text-center">Estado</th>
-                <th className="px-6 py-3 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {gastosFiltrados.map((g) => (
-                <tr key={g.id_recibo_gasto} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-gray-600">{new Date(g.fecha_emision).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 font-medium text-gray-800">{g.beneficiario.nombre_completo}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className={`w-fit px-2 py-0.5 rounded-full text-xs font-bold ${
-                        g.concepto_general === 'FLETE' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {g.concepto_general}
-                      </span>
-                      {g.documento_asociado_id && (
-                        <span className="text-xs text-gray-400 mt-1">Ref: #{g.documento_asociado_id}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-bold text-red-600">
-                    ${Number(g.monto).toFixed(2)}
-                  </td>
-                  
-                  {/* COLUMNA ESTADO DE PAGO - LIMPIA */}
-                  <td className="px-6 py-4 text-center">
-                    {g.concepto_general === 'FLETE' ? (
-                      // Si es FLETE, mostramos el botón interactivo
-                      <button
-                        onClick={() => toggleEstadoPago(g)}
-                        className={`flex items-center justify-center gap-1 px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
-                          g.estado_pago === 'PAGADO' 
-                            ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
-                            : 'bg-yellow-100 text-yellow-700 border border-yellow-200 hover:bg-yellow-200'
-                        }`}
-                        title="Clic para cambiar estado"
-                      >
-                        {g.estado_pago === 'PAGADO' ? (
-                          <><CheckCircle size={14} /> PAGADO</>
-                        ) : (
-                          <><Clock size={14} /> PENDIENTE</>
-                        )}
-                      </button>
-                    ) : (
-                      // Si NO es Flete, mostramos vacío o un guión simple
-                      <span className="text-gray-300 text-xs">-</span>
-                    )}
-                  </td>
-
-                  <td className="px-6 py-4 text-center">
-                    <button 
-                      onClick={() => setGastoParaImprimir(g)}
-                      className="text-gray-500 hover:text-blue-600 transition-colors"
-                      title="Ver Recibo"
-                    >
-                      <Printer size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        
-        {!loading && gastosFiltrados.length === 0 && (
-          <div className="p-8 text-center text-gray-400">
-            No se encontraron gastos con los filtros seleccionados.
-          </div>
+      {/* CONTENIDO PRINCIPAL */}
+      <div className="animate-in fade-in duration-300">
+        {loading ? (
+            <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div><p>Cargando registros...</p></div>
+        ) : (
+            <>
+                {activeTab === 'madera' ? renderVistaMadera() : renderTablaGeneral()}
+            </>
         )}
       </div>
 
