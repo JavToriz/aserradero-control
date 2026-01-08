@@ -100,6 +100,16 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
     }
   };
 
+  // Función para manejar cuando se crea una persona exitosamente desde el modal
+  const handleBeneficiarioCreated = (nuevaPersona: Persona) => {
+    // 1. Guardamos el objeto completo en el estado 'beneficiario'
+    setBeneficiario(nuevaPersona);
+    // 2. Actualizamos el texto del input para que se vea reflejado visualmente
+    setBeneficiarioNombre(nuevaPersona.nombre_completo);
+    // 3. Cerramos el modal
+    setIsPersonaModalOpen(false);
+  };
+
   // Función render personalizada para Remisiones en el buscador
   const renderRemisionItem = (item: RemisionSearch) => (
     <div className="flex flex-col py-1">
@@ -109,6 +119,7 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
   );
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-6">
       
       {/* 1. Fecha y Beneficiario */}
@@ -226,12 +237,14 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
         </button>
       </div>
 
-      {/* Modal Persona */}
-      <PersonaFormModal 
-        isOpen={isPersonaModalOpen}
-        onClose={() => setIsPersonaModalOpen(false)}
-        onSaveSuccess={(p) => { setBeneficiario(p); setBeneficiarioNombre(p.nombre_completo); setIsPersonaModalOpen(false); }}
-      />
     </form>
+    {/* Modal Persona */}
+        <PersonaFormModal 
+          isOpen={isPersonaModalOpen}
+          onClose={() => setIsPersonaModalOpen(false)}
+          onSaveSuccess={handleBeneficiarioCreated}
+          modalTitle='Nuevo Beneficiario'
+        />
+    </>
   );
 }
