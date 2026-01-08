@@ -39,7 +39,14 @@ interface NotaProps {
   datos: {
     folio_nota: string;
     fecha_salida: string;
-    cliente: { nombre_completo: string; domicilio_poblacion?: string; rfc?: string };
+    cliente: { nombre_completo: string; 
+      // Campos de dirección agregados
+      domicilio_calle?: string;
+      domicilio_poblacion?: string; 
+      domicilio_municipio?: string;
+      domicilio_entidad?: string;
+      rfc?: string 
+    };
     vehiculo?: { marca: string; modelo: string; matricula: string; capacidad_carga_toneladas: number };
     detalles: any[];
     total_venta: number;
@@ -79,6 +86,16 @@ export const NotaVentaImprimible = ({ datos, empresa }: NotaProps) => {
     direccion_completa: "PARCELA 317 Z-1 P1/2 DEL EJIDO RIO SECO\nC.P. 43500 PUENTE DE DORIA RIO SECO,\nHUASCA DE OCAMPO, HGO.",
     logo_url: "/images/logo-puente-de-doria.png"
   };
+
+  // --- LÓGICA DE DIRECCIÓN COMPLETA ---
+  const direccionCliente = [
+    datos.cliente.domicilio_calle,
+    datos.cliente.domicilio_poblacion,
+    datos.cliente.domicilio_municipio,
+    datos.cliente.domicilio_entidad
+  ]
+  .filter(part => part && part.trim() !== '') // Elimina nulos o vacíos
+  .join(', '); // Une con coma y espacio
 
   const renderDescripcion = (item: any) => {
     const desc = item.producto?.descripcion || '';
@@ -135,7 +152,7 @@ export const NotaVentaImprimible = ({ datos, empresa }: NotaProps) => {
         </div>
         <div style={{ display: 'flex' }}>
           <div style={{ width: '80px', padding: '4px', backgroundColor: '#f3f4f6', borderRight: '1px solid #000', fontWeight: 'bold', fontSize: '9px' }}>DIRECCIÓN:</div>
-          <div style={{ padding: '4px', flex: 1, textTransform: 'uppercase', fontSize: '10px' }}>{datos.cliente.domicilio_poblacion || ''}</div>
+          <div style={{ padding: '4px', flex: 1, textTransform: 'uppercase', fontSize: '10px' }}>{direccionCliente || ''}</div>
         </div>
       </div>
 

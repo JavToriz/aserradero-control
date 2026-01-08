@@ -1,12 +1,14 @@
-// components/ventas/NuevaVentaForm.tsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchAndCreateInput } from '@/components/ui/SearchAndCreateInput';
 import { PersonaFormModal } from '@/components/personas/PersonaFormModal';
+// IMPORTANTE: Verifica que esta ruta sea correcta según tu estructura de carpetas
+// Si no tienes el archivo aún, créalo basándote en PersonaFormModal
+import { VehiculoFormModal } from '@/components/vehiculos/VehiculoFormModal'; 
 import { SeleccionarInventarioModal } from './SeleccionarInventarioModal';
-import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box } from 'lucide-react'; // Añadí Box icono para SKU
+import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box } from 'lucide-react'; 
 import { NotaVentaImprimible } from './NotaVentaImprimible'; 
 
 // Tipos
@@ -19,7 +21,7 @@ type ProductoCatalogo = {
   descripcion: string; 
   precio_venta: number;   
   precio_mayoreo?: number; 
-  sku?: string; // Aseguramos que el SKU esté en el tipo
+  sku?: string; 
   tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
   atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number } | null;
   atributos_triplay?: { espesor_mm: number; ancho_ft: number; largo_ft: number } | null;
@@ -58,13 +60,16 @@ export function NuevaVentaForm() {
 
   const [carrito, setCarrito] = useState<ProductoVenta[]>([]);
   
+  // Estados de Modales
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
+  const [isVehiculoModalOpen, setIsVehiculoModalOpen] = useState(false); // Nuevo estado para Vehículo
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  
   const [productoParaStock, setProductoParaStock] = useState<{idUnico: string, producto: any, cantidad: number} | null>(null);
   const [ventaGuardada, setVentaGuardada] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- RENDERIZADO PERSONALIZADO (Aquí está la magia UX) ---
+  // --- RENDERIZADO PERSONALIZADO ---
   const renderReembarqueItem = (item: ReembarqueSearch) => (
     <div className="flex flex-col py-1">
       <span className="font-bold">Folio: {item.folio_progresivo}</span>
@@ -75,7 +80,6 @@ export function NuevaVentaForm() {
   const renderProductoItem = (item: ProductoCatalogo) => {
     let medidas = '';
 
-    // Lógica para formatear medidas bonito
     if (item.tipo_categoria === 'MADERA_ASERRADA' && item.atributos_madera) {
       const { grosor_pulgadas, ancho_pulgadas, largo_pies } = item.atributos_madera;
       medidas = `${grosor_pulgadas}" x ${ancho_pulgadas}" x ${largo_pies}'`;
@@ -86,13 +90,10 @@ export function NuevaVentaForm() {
 
     return (
       <div className="flex flex-col py-1 w-full">
-        {/* Fila 1: Descripción Principal */}
         <span className="font-medium text-gray-800 text-sm truncate">{item.descripcion}</span>
-        
-        {/* Fila 2: SKU y Medidas */}
         <div className="flex justify-between items-center mt-0.5">
           <div className="flex items-center gap-1 text-xs text-blue-600 font-mono">
-             <Box size={10} /> {/* Iconito de caja */}
+             <Box size={10} />
              <span>SKU: {item.sku || 'S/N'}</span>
           </div>
           {medidas && (
@@ -274,298 +275,325 @@ export function NuevaVentaForm() {
     );
   }
 
+  // Usamos Fragment (<>) para envolver todo sin añadir nodos extra al DOM
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 pb-20 max-w-7xl mx-auto">
-      
-      {/* 1. Cliente */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-2 gap-2">
-            <h2 className="text-lg font-bold text-gray-800">1. Datos Generales</h2>
-            
-            <div className="w-full md:w-auto">
-                {!mostrarReembarque ? (
-                    <button 
-                        type="button" 
-                        onClick={() => setMostrarReembarque(true)}
-                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-2 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
-                    >
-                        <LinkIcon size={16} /> 
-                        Vincular con Reembarque (Opcional)
-                    </button>
-                ) : (
-                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
-                        <div className="w-64 md:w-80">
-                            <SearchAndCreateInput<ReembarqueSearch>
-                                label=""
-                                placeholder="Buscar folio (Ej: RE-2025-001)"
-                                searchApiUrl="/api/reembarques" 
-                                displayField="folio_progresivo"
-                                inputValue={reembarqueQuery}
-                                onInputChange={(v) => { setReembarqueQuery(v); setReembarque(null); }}
-                                onSelect={(r) => { setReembarque(r); setReembarqueQuery(r.folio_progresivo); }}
-                                onCreateNew={() => {}}
-                                renderItem={renderReembarqueItem}
-                            />
-                        </div>
-                        <button 
-                            type="button"
-                            onClick={ocultarReembarque}
-                            className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-gray-100 transition-colors"
-                        >
-                            <X size={20} />
-                        </button>
-                    </div>
-                )}
-                {reembarque && !mostrarReembarque && (
-                   <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                        🔗 Vinculado: <strong>{reembarque.folio_progresivo}</strong>
-                      </span>
-                      <button type="button" onClick={ocultarReembarque} className="text-xs text-red-500 underline">Quitar</button>
-                   </div>
-                )}
-            </div>
-        </div>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-8 pb-20 max-w-7xl mx-auto">
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <SearchAndCreateInput<Cliente>
-            label="Cliente"
-            placeholder="Buscar cliente..."
-            searchApiUrl="/api/personas"
-            displayField="nombre_completo"
-            inputValue={clienteNombre}
-            onInputChange={(v) => { setClienteNombre(v); setCliente(null); }}
-            onSelect={(c) => { setCliente(c); setClienteNombre(c.nombre_completo); }}
-            onCreateNew={() => setIsClienteModalOpen(true)}
-          />
-          <SearchAndCreateInput<Vehiculo>
-            label="Vehículo (Opcional)"
-            placeholder="Buscar placas..."
-            searchApiUrl="/api/vehiculos"
-            displayField="matricula"
-            inputValue={vehiculoMatricula}
-            onInputChange={(v) => { setVehiculoMatricula(v); setVehiculo(null); }}
-            onSelect={(v) => { setVehiculo(v); setVehiculoMatricula(v.matricula); }}
-            onCreateNew={() => alert("Modal Vehículo pendiente")}
-          />
+        {/* 1. Datos Generales (Cliente y Vehículo) */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-2 gap-2">
+              <h2 className="text-lg font-bold text-gray-800">1. Datos Generales</h2>
+              
+              <div className="w-full md:w-auto">
+                  {!mostrarReembarque ? (
+                      <button 
+                          type="button" 
+                          onClick={() => setMostrarReembarque(true)}
+                          className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-2 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+                      >
+                          <LinkIcon size={16} /> 
+                          Vincular con Reembarque (Opcional)
+                      </button>
+                  ) : (
+                      <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+                          <div className="w-64 md:w-80">
+                              <SearchAndCreateInput<ReembarqueSearch>
+                                  label=""
+                                  placeholder="Buscar folio (Ej: RE-2025-001)"
+                                  searchApiUrl="/api/reembarques" 
+                                  displayField="folio_progresivo"
+                                  inputValue={reembarqueQuery}
+                                  onInputChange={(v) => { setReembarqueQuery(v); setReembarque(null); }}
+                                  onSelect={(r) => { setReembarque(r); setReembarqueQuery(r.folio_progresivo); }}
+                                  onCreateNew={() => {}} // Reembarque no se crea desde aquí usualmente
+                                  renderItem={renderReembarqueItem}
+                              />
+                          </div>
+                          <button 
+                              type="button"
+                              onClick={ocultarReembarque}
+                              className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
+                  )}
+                  {reembarque && !mostrarReembarque && (
+                     <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                          🔗 Vinculado: <strong>{reembarque.folio_progresivo}</strong>
+                        </span>
+                        <button type="button" onClick={ocultarReembarque} className="text-xs text-red-500 underline">Quitar</button>
+                     </div>
+                  )}
+              </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Input de Cliente vinculado al Modal */}
+            <SearchAndCreateInput<Cliente>
+              label="Cliente"
+              placeholder="Buscar cliente..."
+              searchApiUrl="/api/personas"
+              displayField="nombre_completo"
+              inputValue={clienteNombre}
+              onInputChange={(v) => { setClienteNombre(v); setCliente(null); }}
+              onSelect={(c) => { setCliente(c); setClienteNombre(c.nombre_completo); }}
+              onCreateNew={() => setIsClienteModalOpen(true)} // Abre el modal sin recargar
+            />
+            
+            {/* Input de Vehículo vinculado al Modal */}
+            <SearchAndCreateInput<Vehiculo>
+              label="Vehículo (Opcional)"
+              placeholder="Buscar placas..."
+              searchApiUrl="/api/vehiculos"
+              displayField="matricula"
+              inputValue={vehiculoMatricula}
+              onInputChange={(v) => { setVehiculoMatricula(v); setVehiculo(null); }}
+              onSelect={(v) => { setVehiculo(v); setVehiculoMatricula(v.matricula); }}
+              onCreateNew={() => setIsVehiculoModalOpen(true)} // Abre el modal sin recargar
+            />
+          </div>
         </div>
-      </div>
 
-      {/* 2. Productos */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-gray-100 pb-6">
-           <div>
-             <h2 className="text-xl font-bold text-gray-800 mb-1">2. Productos y Pago</h2>
-             <p className="text-sm text-gray-500">Agrega productos buscando por Nombre o SKU.</p>
-           </div>
-           
-           <div className="flex flex-wrap gap-4 items-end bg-gray-50 p-3 rounded-xl border border-gray-100 w-full lg:w-auto">
+        {/* 2. Productos */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+          {/* ... (Cabecera de productos y fecha igual que antes) ... */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-gray-100 pb-6">
              <div>
-               <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Fecha</label>
-               <input 
-                 type="date" 
-                 className="border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 text-sm py-2 px-3" 
-                 value={fecha} 
-                 onChange={e => setFecha(e.target.value)} 
-               />
+               <h2 className="text-xl font-bold text-gray-800 mb-1">2. Productos y Pago</h2>
+               <p className="text-sm text-gray-500">Agrega productos buscando por Nombre o SKU.</p>
              </div>
-             <div className="flex-1 min-w-[150px]">
-               <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Método Pago</label>
-               <select 
-                 className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 text-sm py-2 px-3"
-                 value={tipoPago}
-                 onChange={e => setTipoPago(e.target.value)}
-               >
-                 <option>Efectivo</option>
-                 <option>Transferencia</option>
-                 <option>Tarjeta</option>
-                 <option>Cheque</option>
-                 <option>Crédito</option>
-               </select>
+             
+             <div className="flex flex-wrap gap-4 items-end bg-gray-50 p-3 rounded-xl border border-gray-100 w-full lg:w-auto">
+               <div>
+                 <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Fecha</label>
+                 <input 
+                   type="date" 
+                   className="border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 text-sm py-2 px-3" 
+                   value={fecha} 
+                   onChange={e => setFecha(e.target.value)} 
+                 />
+               </div>
+               <div className="flex-1 min-w-[150px]">
+                 <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase">Método Pago</label>
+                 <select 
+                   className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 text-sm py-2 px-3"
+                   value={tipoPago}
+                   onChange={e => setTipoPago(e.target.value)}
+                 >
+                   <option>Efectivo</option>
+                   <option>Transferencia</option>
+                   <option>Tarjeta</option>
+                   <option>Cheque</option>
+                   <option>Crédito</option>
+                 </select>
+               </div>
              </div>
-           </div>
-        </div>
-
-        {tipoPago === 'Transferencia' && (
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-center gap-4 animate-in fade-in slide-in-from-top-2">
-            <div className="p-2 bg-blue-100 rounded-full text-blue-600">
-               <AlertCircle size={24} />
-            </div>
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Cuenta Destino (Titular Receptor)</label>
-              <input 
-                type="text" 
-                placeholder="Nombre de la cuenta destino..." 
-                className="w-full border-0 border-b-2 border-blue-200 bg-transparent px-0 py-2 text-sm focus:ring-0 focus:border-blue-600 text-blue-900 placeholder-blue-300 font-medium"
-                value={cuentaDestino}
-                onChange={(e) => setCuentaDestino(e.target.value)}
-              />
-            </div>
           </div>
-        )}
 
-        {/* Tabla de Carrito */}
-        <div className="min-h-auto">
-          <table className="w-full text-sm text-left border-collapse ">
-            <thead className="bg-gray-100 text-gray-600 font-semibold uppercase tracking-wider text-xs">
-              <tr>
-                <th className="px-4 py-4 rounded-l-lg w-[35%]">Producto</th>
-                <th className="px-2 py-4 w-[10%] text-center">Cant.</th>
-                <th className="px-4 py-4 w-[25%]">Precio U.</th>
-                <th className="px-4 py-4 w-[15%] text-right">Importe</th>
-                <th className="px-4 py-4 text-center w-[15%]">Stock</th>
-                <th className="px-2 py-4 rounded-r-lg w-[5%]"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {carrito.map((item, index) => (
-                <tr key={item.idUnico} className="hover:bg-blue-50/40 relative group transition-colors">
-                  <td className="px-4 py-3 align-top">
-                    {/* INPUT DE BÚSQUEDA CON RENDER PERSONALIZADO */}
-                    <SearchAndCreateInput<ProductoCatalogo>
-                      label="" 
-                      placeholder="Buscar por Nombre o SKU..."
-                      searchApiUrl="/api/productos"
-                      displayField="descripcion"
-                      inputValue={item.nombreProducto}
-                      onInputChange={(v) => actualizarFila(item.idUnico, 'nombreProducto', v)}
-                      onSelect={(p) => {
-                        actualizarFila(item.idUnico, 'producto', p);
-                        actualizarFila(item.idUnico, 'nombreProducto', p.descripcion);
-                      }}
-                      onCreateNew={() => alert("Crear prod rápido (Pendiente)")}
-                      renderItem={renderProductoItem} // <-- AQUÍ PASAMOS EL RENDERIZADOR NUEVO
-                    />
-                  </td>
-                  <td className="px-2 py-3 align-top text-center">
-                    <input 
-                      type="number" 
-                      className="w-full min-w-[4rem] border-gray-300 rounded-lg py-2 text-center font-bold text-gray-700 focus:ring-blue-500 focus:border-blue-500"
-                      value={item.cantidad === 0 ? '' : item.cantidad}
-                      onChange={e => actualizarFila(item.idUnico, 'cantidad', Number(e.target.value))}
-                      placeholder="0"
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <div className="flex flex-col gap-2">
-                       {/* Switch Precio */}
-                       {item.producto && (
-                         <div className="flex bg-gray-100 rounded-lg p-1 w-full max-w-[200px]">
-                           <button
-                             type="button"
-                             onClick={() => cambiarTipoPrecio(item.idUnico, 'MENUDEO')}
-                             className={`flex-1 text-[10px] py-1 rounded-md font-bold transition-all ${
-                               item.tipoPrecio === 'MENUDEO' 
-                               ? 'bg-white text-gray-800 shadow-sm' 
-                               : 'text-gray-400 hover:text-gray-600'
-                             }`}
-                           >
-                             Público
-                           </button>
-                           <button
-                             type="button"
-                             onClick={() => cambiarTipoPrecio(item.idUnico, 'MAYOREO')}
-                             className={`flex-1 text-[10px] py-1 rounded-md font-bold transition-all ${
-                               item.tipoPrecio === 'MAYOREO' 
-                               ? 'bg-green-100 text-green-700 shadow-sm' 
-                               : 'text-gray-400 hover:text-gray-600'
-                             }`}
-                           >
-                             Mayoreo
-                           </button>
-                         </div>
-                       )}
+          {tipoPago === 'Transferencia' && (
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-center gap-4 animate-in fade-in slide-in-from-top-2">
+              <div className="p-2 bg-blue-100 rounded-full text-blue-600">
+                 <AlertCircle size={24} />
+              </div>
+              <div className="flex-1 w-full">
+                <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Cuenta Destino (Titular Receptor)</label>
+                <input 
+                  type="text" 
+                  placeholder="Nombre de la cuenta destino..." 
+                  className="w-full border-0 border-b-2 border-blue-200 bg-transparent px-0 py-2 text-sm focus:ring-0 focus:border-blue-600 text-blue-900 placeholder-blue-300 font-medium"
+                  value={cuentaDestino}
+                  onChange={(e) => setCuentaDestino(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
-                       <div className="relative">
-                          <span className="absolute left-3 top-2 text-gray-400 text-xs">$</span>
-                          <input 
-                            type="number" 
-                            step="0.01"
-                            className={`w-full border rounded-lg pl-6 pr-3 py-1.5 transition-colors focus:ring-2 focus:ring-offset-1 ${
-                              item.tipoPrecio === 'MAYOREO' 
-                                ? 'border-green-300 bg-green-50 text-green-800 font-bold focus:ring-green-500' 
-                                : 'border-gray-300 text-gray-800 focus:ring-blue-500'
-                            }`}
-                            value={item.precioUnitario === 0 ? '' : item.precioUnitario}
-                            onChange={e => actualizarFila(item.idUnico, 'precioUnitario', Number(e.target.value))}
-                          />
-                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-bold text-gray-700 align-middle text-right text-lg">
-                    ${(item.cantidad * item.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3 text-center align-middle">
-                    <button
-                      type="button"
-                      onClick={() => abrirModalStock(item)}
-                      className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors w-full flex items-center justify-center gap-1 ${
-                        item.inventarioValidado 
-                          ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
-                          : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
-                      }`}
-                    >
-                      {item.inventarioValidado ? 'Listo' : 'Asignar'}
-                    </button>
-                  </td>
-                  <td className="px-2 py-3 text-center align-middle">
-                    <button 
-                      type="button" 
-                      onClick={() => eliminarFila(item.idUnico)}
-                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
+          {/* Tabla de Carrito */}
+          <div className="min-h-auto">
+            <table className="w-full text-sm text-left border-collapse ">
+              <thead className="bg-gray-100 text-gray-600 font-semibold uppercase tracking-wider text-xs">
+                <tr>
+                  <th className="px-4 py-4 rounded-l-lg w-[35%]">Producto</th>
+                  <th className="px-2 py-4 w-[10%] text-center">Cant.</th>
+                  <th className="px-4 py-4 w-[25%]">Precio U.</th>
+                  <th className="px-4 py-4 w-[15%] text-right">Importe</th>
+                  <th className="px-4 py-4 text-center w-[15%]">Stock</th>
+                  <th className="px-2 py-4 rounded-r-lg w-[5%]"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {carrito.map((item, index) => (
+                  <tr key={item.idUnico} className="hover:bg-blue-50/40 relative group transition-colors">
+                    <td className="px-4 py-3 align-top">
+                      <SearchAndCreateInput<ProductoCatalogo>
+                        label="" 
+                        placeholder="Buscar por Nombre o SKU..."
+                        searchApiUrl="/api/productos"
+                        displayField="descripcion"
+                        inputValue={item.nombreProducto}
+                        onInputChange={(v) => actualizarFila(item.idUnico, 'nombreProducto', v)}
+                        onSelect={(p) => {
+                          actualizarFila(item.idUnico, 'producto', p);
+                          actualizarFila(item.idUnico, 'nombreProducto', p.descripcion);
+                        }}
+                        onCreateNew={() => {}}
+                        renderItem={renderProductoItem}
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top text-center">
+                      <input 
+                        type="number" 
+                        className="w-full min-w-[4rem] border-gray-300 rounded-lg py-2 text-center font-bold text-gray-700 focus:ring-blue-500 focus:border-blue-500"
+                        value={item.cantidad === 0 ? '' : item.cantidad}
+                        onChange={e => actualizarFila(item.idUnico, 'cantidad', Number(e.target.value))}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex flex-col gap-2">
+                         {item.producto && (
+                           <div className="flex bg-gray-100 rounded-lg p-1 w-full max-w-[200px]">
+                             <button
+                               type="button"
+                               onClick={() => cambiarTipoPrecio(item.idUnico, 'MENUDEO')}
+                               className={`flex-1 text-[10px] py-1 rounded-md font-bold transition-all ${
+                                 item.tipoPrecio === 'MENUDEO' 
+                                 ? 'bg-white text-gray-800 shadow-sm' 
+                                 : 'text-gray-400 hover:text-gray-600'
+                               }`}
+                             >
+                               Público
+                             </button>
+                             <button
+                               type="button"
+                               onClick={() => cambiarTipoPrecio(item.idUnico, 'MAYOREO')}
+                               className={`flex-1 text-[10px] py-1 rounded-md font-bold transition-all ${
+                                 item.tipoPrecio === 'MAYOREO' 
+                                 ? 'bg-green-100 text-green-700 shadow-sm' 
+                                 : 'text-gray-400 hover:text-gray-600'
+                               }`}
+                             >
+                               Mayoreo
+                             </button>
+                           </div>
+                         )}
+                         <div className="relative">
+                            <span className="absolute left-3 top-2 text-gray-400 text-xs">$</span>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              className={`w-full border rounded-lg pl-6 pr-3 py-1.5 transition-colors focus:ring-2 focus:ring-offset-1 ${
+                                item.tipoPrecio === 'MAYOREO' 
+                                  ? 'border-green-300 bg-green-50 text-green-800 font-bold focus:ring-green-500' 
+                                  : 'border-gray-300 text-gray-800 focus:ring-blue-500'
+                              }`}
+                              value={item.precioUnitario === 0 ? '' : item.precioUnitario}
+                              onChange={e => actualizarFila(item.idUnico, 'precioUnitario', Number(e.target.value))}
+                            />
+                         </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-gray-700 align-middle text-right text-lg">
+                      ${(item.cantidad * item.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 text-center align-middle">
+                      <button
+                        type="button"
+                        onClick={() => abrirModalStock(item)}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors w-full flex items-center justify-center gap-1 ${
+                          item.inventarioValidado 
+                            ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
+                            : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                        }`}
+                      >
+                        {item.inventarioValidado ? 'Listo' : 'Asignar'}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 text-center align-middle">
+                      <button 
+                        type="button" 
+                        onClick={() => eliminarFila(item.idUnico)}
+                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        <button
-          type="button"
-          onClick={agregarFila}
-          className="flex items-center gap-2 text-blue-600 font-bold hover:bg-blue-50 px-5 py-2.5 rounded-lg transition-colors border border-dashed border-blue-200 hover:border-blue-300 mt-2"
-        >
-          <Plus size={20} /> Añadir Producto
-        </button>
+          <button
+            type="button"
+            onClick={agregarFila}
+            className="flex items-center gap-2 text-blue-600 font-bold hover:bg-blue-50 px-5 py-2.5 rounded-lg transition-colors border border-dashed border-blue-200 hover:border-blue-300 mt-2"
+          >
+            <Plus size={20} /> Añadir Producto
+          </button>
 
-        <div className="flex justify-end border-t border-gray-100 pt-6">
-          <div className="w-64 space-y-2">
-            <div className="flex justify-between items-center text-xl font-bold text-gray-800">
-              <span>TOTAL</span>
-              <span>${totalVenta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+          <div className="flex justify-end border-t border-gray-100 pt-6">
+            <div className="w-64 space-y-2">
+              <div className="flex justify-between items-center text-xl font-bold text-gray-800">
+                <span>TOTAL</span>
+                <span>${totalVenta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Footer */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-        <div className="flex-1 w-full md:w-auto">
-           <label className="block text-sm text-gray-600 mb-1 font-medium">Nombre y Firma de quien expide</label>
-           <input 
-             className="border-gray-300 rounded-lg px-4 py-2.5 w-full md:w-80 focus:ring-blue-500 focus:border-blue-500" 
-             placeholder="Escribe el nombre completo..."
-             value={quienExpide}
-             onChange={e => setQuienExpide(e.target.value)}
-           />
+        {/* Footer */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex-1 w-full md:w-auto">
+             <label className="block text-sm text-gray-600 mb-1 font-medium">Nombre y Firma de quien expide</label>
+             <input 
+               className="border-gray-300 rounded-lg px-4 py-2.5 w-full md:w-80 focus:ring-blue-500 focus:border-blue-500" 
+               placeholder="Escribe el nombre completo..."
+               value={quienExpide}
+               onChange={e => setQuienExpide(e.target.value)}
+             />
+          </div>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="bg-blue-600 text-white px-10 py-3.5 rounded-xl shadow-lg hover:bg-blue-700 transition-all transform active:scale-[0.98] flex items-center gap-3 font-bold text-lg w-full md:w-auto justify-center"
+          >
+            <Save size={24} /> {isSaving ? 'Guardando...' : 'Generar Nota de Venta'}
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="bg-blue-600 text-white px-10 py-3.5 rounded-xl shadow-lg hover:bg-blue-700 transition-all transform active:scale-[0.98] flex items-center gap-3 font-bold text-lg w-full md:w-auto justify-center"
-        >
-          <Save size={24} /> {isSaving ? 'Guardando...' : 'Generar Nota de Venta'}
-        </button>
-      </div>
 
+      </form>
+
+      {/* --- MODALES FUERA DEL FORMULARIO PRINCIPAL --- */}
+      {/* Al estar aquí, sus botones no activarán el 'submit' del formulario de venta */}
+      
       <PersonaFormModal 
         isOpen={isClienteModalOpen}
         onClose={() => setIsClienteModalOpen(false)}
-        onSaveSuccess={(c) => { setCliente(c); setClienteNombre(c.nombre_completo); setIsClienteModalOpen(false); }}
+        onSaveSuccess={(c) => { 
+            // 1. Guardar los datos en el estado del formulario padre
+            setCliente(c); 
+            setClienteNombre(c.nombre_completo); 
+            // 2. Cerrar el modal
+            setIsClienteModalOpen(false); 
+        }}
       />
+
+      {/* Asumiendo que VehiculoFormModal sigue la misma estructura que PersonaFormModal */}
+      {VehiculoFormModal && (
+        <VehiculoFormModal 
+          isOpen={isVehiculoModalOpen}
+          onClose={() => setIsVehiculoModalOpen(false)}
+          onSuccess={(v: Vehiculo) => { 
+              setVehiculo(v); 
+              setVehiculoMatricula(v.matricula); 
+              setIsVehiculoModalOpen(false); 
+          }}
+        />
+      )}
 
       <SeleccionarInventarioModal
         isOpen={isStockModalOpen}
@@ -574,7 +602,6 @@ export function NuevaVentaForm() {
         cantidadRequerida={productoParaStock?.cantidad || 0}
         onConfirm={confirmarStock}
       />
-
-    </form>
+    </>
   );
 }
