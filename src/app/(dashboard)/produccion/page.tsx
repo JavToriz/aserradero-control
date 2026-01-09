@@ -1,25 +1,18 @@
-// app/(dashboard)/produccion/page.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Warehouse, Package, Minus, GitBranch, Search, Trees, Settings2 } from 'lucide-react';
+import { Plus, Warehouse, Package, Minus, GitBranch, Trees, Settings2 } from 'lucide-react';
 import { InventarioKanban } from '@/components/produccion/InventarioKanban';
 import { MoverStockModal } from '@/components/produccion/MoverStockModal';
-import { BalanceCard } from '@/components/produccion/BalanceCard'; // <--- IMPORTACIÓN NUEVA
+import { BalanceCard } from '@/components/produccion/BalanceCard';
 import { AjustePatioModal } from '@/components/produccion/AjustePatioModal';
+import { InventoryFilterBar } from '@/components/filtros/InventoryFilterBar';
 import * as Tabs from '@radix-ui/react-tabs';
 
 // --- TIPOS ---
-type KpiData = {
-  m3EnPatio: string;
-  totalPiezasTerminadas: number;
-  lotesActivos: number;
-  // Datos extra para el desglose de patio
-  desglosePatio?: { especie: string; m3: number }[];
-};
-
+// (Si prefieres, mueve StockItem a un archivo types.ts global para compartirlo con InventoryFilterBar sin referencias circulares)
 export type StockItem = {
   id_stock: number;
   piezas_actuales: number;
@@ -34,6 +27,13 @@ export type StockItem = {
   };
 };
 
+type KpiData = {
+  m3EnPatio: string;
+  totalPiezasTerminadas: number;
+  lotesActivos: number;
+  desglosePatio?: { especie: string; m3: number }[];
+};
+
 export default function ProduccionDashboardPage() {
   const router = useRouter();
   const getToken = () => localStorage.getItem('sessionToken');
@@ -41,27 +41,17 @@ export default function ProduccionDashboardPage() {
   // Estados de Datos
   const [kpis, setKpis] = useState<KpiData | null>(null);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  
+  // IMPORTANTE: Estado para los items ya filtrados que nos devuelve el componente hijo
+  const [stockFiltrado, setStockFiltrado] = useState<StockItem[]>([]);
+  
   const [loading, setLoading] = useState(true);
   
   // Estado de UI
-  const [activeTab, setActiveTab] = useState('proceso'); // 'proceso' | 'patio'
+  const [activeTab, setActiveTab] = useState('proceso');
   const [itemParaMover, setItemParaMover] = useState<StockItem | null>(null);
   const [moveMode, setMoveMode] = useState<'full' | 'partial'>('full');
-
-  // --- FILTROS DE INVENTARIO ---
-  const [busqueda, setBusqueda] = useState('');
-  const [filtroGenero, setFiltroGenero] = useState('TODOS');
-  const [filtroTipo, setFiltroTipo] = useState('TODOS');
-  const [filtroClasificacion, setFiltroClasificacion] = useState('TODOS');
-
-  // Estado para el modal de ajuste de patio
   const [isAjusteModalOpen, setIsAjusteModalOpen] = useState(false);
-  const handleAjusteSuccess = () => {
-    // Recargar datos (truco simple: forzar update o llamar fetchData)
-    // Como BalanceCard tiene su propio fetch interno, idealmente pasamos una prop "key" o un "trigger"
-    // Pero por simplicidad, recargaremos toda la página o usaremos router.refresh()
-    window.location.reload(); 
-  };
 
   // Carga de Datos
   const fetchData = useCallback(async () => {
@@ -75,7 +65,9 @@ export default function ProduccionDashboardPage() {
 
       if (kpiRes.ok && stockRes.ok) {
         setKpis(await kpiRes.json());
-        setStockItems(await stockRes.json());
+        const items = await stockRes.json();
+        setStockItems(items);
+        setStockFiltrado(items); // Inicialmente mostramos todo
       }
     } catch (error) {
       console.error(error);
@@ -87,53 +79,6 @@ export default function ProduccionDashboardPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // --- LÓGICA DE FILTRADO (Cliente) ---
-  const stockFiltrado = useMemo(() => {
-    return stockItems.filter(item => {
-      const p = item.producto;
-      // 1. Búsqueda Texto (Descripción o SKU)
-      const textoMatch = 
-        p.descripcion.toLowerCase().includes(busqueda.toLowerCase()) ||
-        (p.sku && p.sku.toLowerCase().includes(busqueda.toLowerCase()));
-
-      if (!textoMatch) return false;
-
-      // Helpers para atributos
-      const attrs = p.atributos_madera || p.atributos_triplay;
-      const genero = attrs?.genero || 'Desconocido';
-      const tipo = attrs?.tipo || 'Desconocido';
-      const clasif = p.atributos_madera?.clasificacion || 'N/A'; // Solo madera tiene clasif
-
-      // 2. Filtros Select
-      if (filtroGenero !== 'TODOS' && genero !== filtroGenero) return false;
-      if (filtroTipo !== 'TODOS' && tipo !== filtroTipo) return false;
-      if (filtroClasificacion !== 'TODOS' && clasif !== filtroClasificacion) return false;
-
-      return true;
-    });
-  }, [stockItems, busqueda, filtroGenero, filtroTipo, filtroClasificacion]);
-
-  // Obtener opciones únicas para los selectores dinámicamente
-  const opcionesFiltros = useMemo(() => {
-    const generos = new Set<string>();
-    const tipos = new Set<string>();
-    const clasificaciones = new Set<string>();
-
-    stockItems.forEach(item => {
-      const attrs = item.producto.atributos_madera || item.producto.atributos_triplay;
-      if (attrs?.genero) generos.add(attrs.genero);
-      if (attrs?.tipo) tipos.add(attrs.tipo);
-      if (item.producto.atributos_madera?.clasificacion) clasificaciones.add(item.producto.atributos_madera.clasificacion);
-    });
-
-    return {
-      generos: Array.from(generos),
-      tipos: Array.from(tipos),
-      clasificaciones: Array.from(clasificaciones)
-    };
-  }, [stockItems]);
-
 
   // Manejadores de Modal
   const handleOpenMoveFullModal = (item: StockItem) => {
@@ -160,12 +105,12 @@ export default function ProduccionDashboardPage() {
         </div>
         <div className="flex gap-2">
           <Link href="/produccion/consumo">
-            <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 shadow-sm text-sm font-medium">
+            <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 shadow-sm text-sm font-medium transition-colors">
               <Minus size={16} /> Salida Patio (Consumo)
             </button>
           </Link>
           <Link href="/produccion/transformado">
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-sm text-sm font-medium">
+            <button className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-sm text-sm font-medium transition-colors">
               <Plus size={16} /> Entrada Producción
             </button>
           </Link>
@@ -177,7 +122,7 @@ export default function ProduccionDashboardPage() {
         <KpiCard
           title="Materia Prima en Patio"
           value={kpis ? kpis.m3EnPatio : '...'}
-          unit="m³ Totales"
+          unit="m³ medidos (reales)"
           icon={<Trees className="text-green-700" />}
           color="bg-green-50"
         />
@@ -215,76 +160,33 @@ export default function ProduccionDashboardPage() {
         </Tabs.List>
 
         {/* CONTENIDO: KANBAN (PROCESO) */}
-        <Tabs.Content value="proceso" className="pt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <Tabs.Content value="proceso" className="pt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           
-          {/* BARRA DE FILTROS (EXISTENTE) */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border mb-6 flex flex-col md:flex-row gap-4 items-center">
-            {/* Buscador Texto */}
-            <div className="flex-1 w-full relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar por descripción, SKU..." 
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-              />
-            </div>
-            
-            {/* Filtros Selectores */}
-            <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-              <select 
-                className="border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                value={filtroGenero}
-                onChange={e => setFiltroGenero(e.target.value)}
-              >
-                <option value="TODOS">Género: Todos</option>
-                {opcionesFiltros.generos.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-
-              <select 
-                className="border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                value={filtroTipo}
-                onChange={e => setFiltroTipo(e.target.value)}
-              >
-                <option value="TODOS">Tipo: Todos</option>
-                {opcionesFiltros.tipos.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-
-              <select 
-                className="border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                value={filtroClasificacion}
-                onChange={e => setFiltroClasificacion(e.target.value)}
-              >
-                <option value="TODOS">Clasif: Todas</option>
-                {opcionesFiltros.clasificaciones.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-
-              {/* Botón Limpiar */}
-              {(busqueda || filtroGenero !== 'TODOS' || filtroTipo !== 'TODOS' || filtroClasificacion !== 'TODOS') && (
-                <button 
-                  onClick={() => { setBusqueda(''); setFiltroGenero('TODOS'); setFiltroTipo('TODOS'); setFiltroClasificacion('TODOS'); }}
-                  className="text-xs text-red-500 hover:underline px-2"
-                >
-                  Limpiar
-                </button>
-              )}
-            </div>
-          </div>
+          {/* NUEVO COMPONENTE DE FILTROS REUTILIZABLE Y COMPACTO */}
+          <InventoryFilterBar 
+            items={stockItems} 
+            onFilterChange={setStockFiltrado}
+            compact={true} 
+          />
 
           {/* KANBAN */}
           {loading ? (
-            <p className="text-center text-gray-500 py-12">Cargando inventario...</p>
+            <div className="flex justify-center py-20">
+                <div className="animate-pulse flex flex-col items-center">
+                    <div className="h-8 w-8 bg-gray-200 rounded-full mb-2"></div>
+                    <p className="text-gray-400 text-sm">Cargando inventario...</p>
+                </div>
+            </div>
           ) : (
             <InventarioKanban 
-              stockItems={stockFiltrado}
+              stockItems={stockFiltrado} // Usamos la lista filtrada que nos devuelve el componente
               onMoveFullItem={handleOpenMoveFullModal}
               onMovePartialItem={handleOpenMovePartialModal}
             />
           )}
         </Tabs.Content>
 
-        {/* CONTENIDO: PATIO (MATERIA PRIMA) - AQUÍ ESTÁ EL CAMBIO */}
+        {/* CONTENIDO: PATIO */}
         <Tabs.Content value="patio" className="pt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-gray-700">Balance General</h2>
@@ -297,7 +199,6 @@ export default function ProduccionDashboardPage() {
                 </button>
             </div>
             
-            {/* Componente Nuevo de Balance */}
             <BalanceCard />
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border mt-6">
@@ -310,7 +211,7 @@ export default function ProduccionDashboardPage() {
         </Tabs.Content>
       </Tabs.Root>
 
-      {/* Modal Mover Stock */}
+      {/* Modales */}
       {itemParaMover && (
         <MoverStockModal
           isOpen={!!itemParaMover}
@@ -321,9 +222,9 @@ export default function ProduccionDashboardPage() {
         />
       )}
       <AjustePatioModal 
-      isOpen={isAjusteModalOpen}
-      onClose={() => setIsAjusteModalOpen(false)}
-      onSuccess={handleAjusteSuccess}
+        isOpen={isAjusteModalOpen}
+        onClose={() => setIsAjusteModalOpen(false)}
+        onSuccess={() => window.location.reload()}
       />
     </div>
   );

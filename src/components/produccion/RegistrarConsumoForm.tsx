@@ -9,7 +9,7 @@ interface RegistrarConsumoFormProps {
   onSaveSuccess: (orden: any) => void;
 }
 
-const ESPECIES_MADERA = ['Pino', 'Encino', 'Oyamel', 'Cedro', 'Roble', 'Otra'];
+const ESPECIES_MADERA = ['Pino', 'Barrote', 'Oyamel', 'Cedro', 'Polin', 'Ayacahuite', 'Sabino', 'Machimbrada pino'];
 
 export function RegistrarConsumoForm({ onSaveSuccess }: RegistrarConsumoFormProps) {
   const router = useRouter();

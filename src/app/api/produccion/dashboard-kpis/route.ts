@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     // 1. Calcular Balance de Materia Prima (m³ en Patio)
     const [remisionesSum, ordenesSum] = await Promise.all([
       prisma.remision.aggregate({
-        _sum: { volumen_total_m3: true },
+        _sum: { m3_recibidos_aserradero: true },
         where: { id_aserradero: aserraderoId },
       }),
       prisma.ordenAserrado.aggregate({
@@ -25,8 +25,11 @@ export async function GET(req: NextRequest) {
       }),
     ]);
     
-    const m3Recibidos = remisionesSum._sum.volumen_total_m3 || 0;
+    // Si no se ha registrado medición, asumimos 0.
+    const m3Recibidos = remisionesSum._sum.m3_recibidos_aserradero || 0;
     const m3Consumidos = ordenesSum._sum.total_m3_rollo_consumido || 0;
+    
+    // El stock físico actual es lo que entró (medido) menos lo que ya se aserró
     const m3EnPatio = m3Recibidos - m3Consumidos;
 
     // 2. Calcular Total de Inventario Terminado (Piezas)

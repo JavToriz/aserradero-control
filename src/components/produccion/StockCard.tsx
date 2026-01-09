@@ -2,7 +2,7 @@
 // Esta es la "tarjeta" individual que vive en el Kanban
 
 import { StockItem } from '@/app/(dashboard)/produccion/page';
-import { Truck, MoveDown } from 'lucide-react';
+import { Truck, MoveDown, Tag } from 'lucide-react';
 
 interface StockCardProps {
   item: StockItem;
@@ -42,6 +42,7 @@ export function StockCard({ item, onMoveFullClick, onMovePartialClick }: StockCa
   const fechaIngreso = new Date(item.fecha_ingreso).toLocaleDateString();
   const medidas = formatMedidas(item);
   const detalles = formatDetalles(item);
+  const sku = item.producto.sku || 'S/N';
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 transition-shadow hover:shadow-md">
@@ -53,10 +54,12 @@ export function StockCard({ item, onMoveFullClick, onMovePartialClick }: StockCa
         {detalles}
       </p>
 
-      {/* Medidas (Destacadas) */}
-      <p className="text-sm text-gray-700 bg-gray-100 inline-block px-2 py-0.5 rounded mb-2">
-        {medidas}
-      </p>
+      {/* SKU (Destacado) - REEMPLAZO DE MEDIDAS */}
+      <div className="inline-flex items-center gap-1.5 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-md mb-2">
+        <span className="text-sm font-mono font-semibold text-gray-700">
+            {sku}
+        </span>
+      </div>
 
       {/* Piezas y Fecha */}
       <div className="flex justify-between items-center my-2 pt-3 border-t">
