@@ -192,8 +192,9 @@ model ArrivoInventario {
   id_producto_catalogo             Int
   cantidad_esperada       Decimal
   proveedor               String?
+  costo_estimado          Decimal?  // útil para proyecciones
   fecha_estimada_llegada  DateTime?
-  estado                  String    @default("PENDIENTE")
+  estado                  String    @default("PENDIENTE") // "PENDIENTE", "RECIBIDO"
   fecha_creacion          DateTime  @default(now())
   fecha_recepcion         DateTime?
 

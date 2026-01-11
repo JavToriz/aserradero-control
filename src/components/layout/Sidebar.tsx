@@ -5,18 +5,18 @@ import Link from 'next/link';
 import { 
   Home, ArrowUpCircle, Boxes, Store, Receipt, 
   Menu, X, ChevronLeft, ChevronRight, 
-  Package, CircleDollarSign, FileText, ShoppingCart
+  Package, CircleDollarSign, FileText, ShoppingCart, Layers
 } from 'lucide-react';
 import LogoutButton from '../ui/LogoutButton';
 
 const menuItems = [
-  { name: 'Registrar Entrada', href: '/registrar-entrada', icon: ArrowUpCircle, color: 'text-green-500' },
   { name: 'Productos', href: '/productos', icon: Package },
   { name: 'Precios', href: '/configuracion/precios', icon: CircleDollarSign },
-  { name: 'Inventario', href: '/produccion', icon: Boxes },
-  { name: 'Reportes', href: '/reportes/semarnat', icon: FileText },
+  { name: 'Inventario / Madera', href: '/produccion', icon: Boxes },
+  { name: 'Inventario / Triplay', href: '/inventario-comercial', icon: Layers },
   { name: 'Ventas', href: '/ventas', icon: ShoppingCart },
   { name: 'Gastos', href: '/gastos', icon: Receipt },
+  { name: 'Reportes', href: '/reportes/semarnat', icon: FileText }
 ];
 
 export function Sidebar() { 

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // Definimos los parámetros de búsqueda (filtros) de la URL
     const { searchParams } = req.nextUrl;
     const genero = searchParams.get('genero');
-    const tipo_categoria = searchParams.get('tipo_categoria'); // Filtro para las pestañas
+    const tipo_categoria = searchParams.get('tipo_categoria') || searchParams.get('categoria'); // Filtro para las pestañas
     const tipo = searchParams.get('tipo');
     const clasificacion = searchParams.get('clasificacion');
     const procedencia = searchParams.get('procedencia');

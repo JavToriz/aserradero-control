@@ -23,7 +23,12 @@ export function useDebouncedSearch<T>(searchApiUrl: string) {
     const token = getToken();
 
     try {
+      const separator = searchApiUrl.includes('?') ? '&' : '?';
+      /*
       const response = await fetch(`${searchApiUrl}?query=${encodeURIComponent(currentQuery)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });*/
+      const response = await fetch(`${searchApiUrl}${separator}query=${encodeURIComponent(currentQuery)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Error en la búsqueda');

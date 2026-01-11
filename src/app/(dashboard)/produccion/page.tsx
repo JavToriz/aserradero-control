@@ -100,8 +100,8 @@ export default function ProduccionDashboardPage() {
       {/* HEADER */}
       <header className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Inventarios</h1>
-          <p className="text-gray-500">Gestión de materia prima y producto terminado.</p>
+          <h1 className="text-3xl font-bold text-gray-800">Inventario</h1>
+          <p className="text-gray-500">Gestión de madera aserrrada y materia prima.</p>
         </div>
         <div className="flex gap-2">
           <Link href="/produccion/consumo">
