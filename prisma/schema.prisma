@@ -34,7 +34,7 @@ model Aserradero {
   curp              String? // Ej: BACH780413HPLDRR07
   rfn               String? // Registro Forestal Nacional
   c_i               String? // Código Industrial
-  logo_url          String? // URL o path de la imagen
+  logo_url          String? // URL o path de la imagen (/images/logo-puente-de-doria.png)
   ciudad_estado     String? // Ej: HUASCA DE OCAMPO, HGO. (Para recibos)
 
   usuarios_predeterminados Usuario[]           @relation("AserraderoPredeterminado")

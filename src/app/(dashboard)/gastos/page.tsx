@@ -2,17 +2,18 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Printer, Search, Truck, Filter, CheckCircle, Clock, Trees, ChevronDown, ChevronUp, Calendar, XCircle } from 'lucide-react';
+import { Plus, Printer, Search, Truck, Filter, Calendar, XCircle, Trees, ChevronDown, ChevronUp } from 'lucide-react';
 import { ImprimirReciboModal } from '@/components/gastos/ImprimirReciboModal';
 import * as Tabs from '@radix-ui/react-tabs';
+import { Switch } from '@/components/ui/Switch'; 
 
-// Definición de tipos
+// --- TIPOS ---
 type Gasto = {
   id_recibo_gasto: number;
   fecha_emision: string;
   monto: number;
   concepto_general: string;
-  estado_pago: string;
+  estado_pago: string; // 'PAGADO' | 'PENDIENTE'
   documento_asociado_id: number | null;
   folio_remision_asociada?: string | null;
   beneficiario: { nombre_completo: string };
@@ -31,38 +32,24 @@ type GrupoRemision = {
 // --- HELPER PARA FECHAS ---
 const isDateInRange = (dateString: string, filter: string): boolean => {
   const d = new Date(dateString);
-  // Ajustamos la fecha para evitar problemas de zona horaria al tomar solo YYYY-MM-DD
-  // Asumimos que dateString viene como 'YYYY-MM-DD' o ISO
   const dateToCheck = new Date(d.getFullYear(), d.getMonth(), d.getDate()); 
-  
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   switch (filter) {
-    case 'hoy':
-      return dateToCheck.getTime() === today.getTime();
-    
+    case 'hoy': return dateToCheck.getTime() === today.getTime();
     case 'ayer':
       const ayer = new Date(today);
       ayer.setDate(ayer.getDate() - 1);
       return dateToCheck.getTime() === ayer.getTime();
-
-    case 'semana': {
-      // Obtener el primer día de la semana (Lunes o Domingo según config, usaremos Domingo aqui)
+    case 'semana':
       const firstDay = new Date(today);
       firstDay.setDate(today.getDate() - today.getDay()); 
       return dateToCheck >= firstDay;
-    }
-
     case 'mes':
-      return dateToCheck.getMonth() === today.getMonth() && 
-             dateToCheck.getFullYear() === today.getFullYear();
-    
-    case 'anio':
-      return dateToCheck.getFullYear() === today.getFullYear();
-
-    default: // 'todos'
-      return true;
+      return dateToCheck.getMonth() === today.getMonth() && dateToCheck.getFullYear() === today.getFullYear();
+    case 'anio': return dateToCheck.getFullYear() === today.getFullYear();
+    default: return true;
   }
 };
 
@@ -74,7 +61,7 @@ export default function GastosPage() {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [activeTab, setActiveTab] = useState('todos');
   const [estadoFiltro, setEstadoFiltro] = useState('todos');
-  const [dateFilter, setDateFilter] = useState('mes'); // Por defecto 'mes' para mejor UX
+  const [dateFilter, setDateFilter] = useState('mes');
   
   const [gastoParaImprimir, setGastoParaImprimir] = useState<any | null>(null);
   const [expandedRemisiones, setExpandedRemisiones] = useState<Record<number, boolean>>({});
@@ -95,12 +82,15 @@ export default function GastosPage() {
     fetchGastos();
   }, []);
 
-  const toggleEstadoPago = async (gasto: any) => {
-    if (gasto.concepto_general !== 'FLETE') return;
+  const toggleEstadoPago = async (gasto: Gasto) => {
+    // --- CAMBIO 1: ELIMINAMOS LA RESTRICCIÓN DE CONCEPTOS ---
+    // Ahora permite cambiar el estado a CUALQUIER tipo de gasto (Nómina, Mantenimiento, etc.)
+    
     const nuevoEstado = gasto.estado_pago === 'PAGADO' ? 'PENDIENTE' : 'PAGADO';
     const token = localStorage.getItem('sessionToken');
     const gastosPrevios = [...gastos];
     
+    // Actualización Optimista
     setGastos(prev => prev.map(g => g.id_recibo_gasto === gasto.id_recibo_gasto ? { ...g, estado_pago: nuevoEstado } : g));
 
     try {
@@ -115,7 +105,7 @@ export default function GastosPage() {
       if (!res.ok) throw new Error('Falló la actualización');
     } catch (error) {
       console.error(error);
-      setGastos(gastosPrevios);
+      setGastos(gastosPrevios); // Revertir en caso de error
       alert("No se pudo actualizar el estado.");
     }
   };
@@ -124,36 +114,28 @@ export default function GastosPage() {
     setExpandedRemisiones(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // --- LÓGICA CENTRAL DE FILTRADO ---
   const { datosFiltrados, totalFiltrado } = useMemo(() => {
     const filtrados = gastos.filter(g => {
       const textoBusqueda = filtroTexto.toLowerCase();
-      
-      // 1. Filtro Texto
       const coincideTexto = g.beneficiario.nombre_completo.toLowerCase().includes(textoBusqueda) ||
                             g.concepto_general.toLowerCase().includes(textoBusqueda) ||
                             (g.folio_remision_asociada || '').toLowerCase().includes(textoBusqueda) ||
                             (g.documento_asociado_id?.toString() || '').includes(textoBusqueda);
       
-      // 2. Filtro Tab (Tipo)
       const coincideTipo = activeTab === 'todos' || 
                            (activeTab === 'fletes' && g.concepto_general === 'FLETE') ||
                            (activeTab === 'madera' && g.concepto_general === 'PAGO DE MADERA');
 
-      // 3. Filtro Estado Pago
       const coincideEstado = estadoFiltro === 'todos' || 
                              (estadoFiltro === 'pagado' && g.estado_pago === 'PAGADO') ||
                              (estadoFiltro === 'pendiente' && g.estado_pago === 'PENDIENTE');
 
-      // 4. NUEVO: Filtro Fecha
       const coincideFecha = isDateInRange(g.fecha_emision, dateFilter);
 
       return coincideTexto && coincideTipo && coincideEstado && coincideFecha;
     });
 
-    // Calcular Total Monetario de la vista actual
     const total = filtrados.reduce((acc, curr) => acc + Number(curr.monto), 0);
-
     return { datosFiltrados: filtrados, totalFiltrado: total };
   }, [gastos, filtroTexto, activeTab, estadoFiltro, dateFilter]);
 
@@ -189,7 +171,7 @@ export default function GastosPage() {
   }, [datosFiltrados, activeTab]);
 
 
-  // --- RENDERS ---
+  // --- RENDERIZADO DE VISTAS ---
   const renderTablaGeneral = () => (
     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <table className="w-full text-sm text-left">
@@ -199,7 +181,7 @@ export default function GastosPage() {
             <th className="px-6 py-3">Beneficiario</th>
             <th className="px-6 py-3">Concepto</th>
             <th className="px-6 py-3">Monto</th>
-            <th className="px-6 py-3 text-center">Estado</th>
+            <th className="px-6 py-3 text-center">Pago</th>
             <th className="px-6 py-3 text-center">Acciones</th>
             </tr>
         </thead>
@@ -215,32 +197,25 @@ export default function GastosPage() {
                     }`}>
                     {g.concepto_general}
                     </span>
-                    {g.folio_remision_asociada ? (
-                       <span className="text-xs text-blue-600 font-medium mt-1">Ref: {g.folio_remision_asociada}</span>
-                    ) : g.documento_asociado_id && (
-                       <span className="text-xs text-gray-400 mt-1">ID Ref: {g.documento_asociado_id}</span>
-                    )}
+                    {g.folio_remision_asociada && <span className="text-xs text-blue-600 font-medium mt-1">Ref: {g.folio_remision_asociada}</span>}
                 </div>
                 </td>
-                <td className="px-6 py-4 font-bold text-red-600">
-                ${Number(g.monto).toFixed(2)}
-                </td>
+                <td className="px-6 py-4 font-bold text-red-600">${Number(g.monto).toFixed(2)}</td>
+                
                 <td className="px-6 py-4 text-center">
-                {g.concepto_general === 'FLETE' ? (
-                    <button
-                    onClick={() => toggleEstadoPago(g)}
-                    className={`flex items-center justify-center gap-1 px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
-                        g.estado_pago === 'PAGADO' 
-                        ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
-                        : 'bg-yellow-100 text-yellow-700 border border-yellow-200 hover:bg-yellow-200'
-                    }`}
-                    >
-                    {g.estado_pago === 'PAGADO' ? <><CheckCircle size={14} /> PAGADO</> : <><Clock size={14} /> PENDIENTE</>}
-                    </button>
-                ) : (
-                    <span className="text-gray-300 text-xs">-</span>
-                )}
+                    {/* --- CAMBIO 2: SWITCH UNIVERSAL --- */}
+                    {/* Quitamos el condicional (if concepto === ...). Ahora el Switch se muestra SIEMPRE */}
+                    <div className="flex flex-col items-center justify-center gap-1">
+                        <Switch 
+                            checked={g.estado_pago === 'PAGADO'}
+                            onChange={() => toggleEstadoPago(g)}
+                        />
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${g.estado_pago === 'PAGADO' ? 'text-green-600' : 'text-gray-400'}`}>
+                            {g.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                        </span>
+                    </div>
                 </td>
+
                 <td className="px-6 py-4 text-center">
                 <button 
                     onClick={() => setGastoParaImprimir(g)}
@@ -255,15 +230,7 @@ export default function GastosPage() {
         </tbody>
         </table>
         {datosFiltrados.length === 0 && (
-            <div className="p-8 text-center text-gray-400 flex flex-col items-center gap-2">
-                <Search size={48} className="text-gray-200" />
-                <p>No se encontraron gastos con los filtros actuales.</p>
-                {dateFilter !== 'todos' && (
-                    <button onClick={() => setDateFilter('todos')} className="text-blue-600 text-sm hover:underline">
-                        Ver todo el historial
-                    </button>
-                )}
-            </div>
+            <div className="p-8 text-center text-gray-400">No se encontraron gastos.</div>
         )}
     </div>
   );
@@ -323,8 +290,20 @@ export default function GastosPage() {
                                                 <span className="text-sm font-medium text-gray-700">Abono</span>
                                                 <span className="text-xs text-gray-400">{new Date(pago.fecha_emision).toLocaleDateString()}</span>
                                             </div>
+                                            
                                             <div className="flex items-center gap-4">
                                                 <span className="font-bold text-gray-700">${Number(pago.monto).toFixed(2)}</span>
+                                                
+                                                <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+                                                    <Switch 
+                                                        checked={pago.estado_pago === 'PAGADO'}
+                                                        onChange={() => toggleEstadoPago(pago)}
+                                                    />
+                                                    <span className={`text-[10px] font-bold uppercase w-14 ${pago.estado_pago === 'PAGADO' ? 'text-green-600' : 'text-gray-400'}`}>
+                                                        {pago.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                                                    </span>
+                                                </div>
+
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); setGastoParaImprimir(pago); }}
                                                     className="text-gray-400 hover:text-blue-600 p-1 rounded-full hover:bg-blue-50"
@@ -354,21 +333,18 @@ export default function GastosPage() {
         </div>
         
         <div className="flex gap-3">
-             {/* Indicador de Total Filtrado - ¡Gran UX! */}
             <div className="bg-white px-4 py-2 rounded-lg border shadow-sm text-right hidden md:block">
                 <p className="text-xs text-gray-400 uppercase font-bold">Total en Pantalla</p>
                 <p className="text-lg font-normal text-gray-600">${totalFiltrado.toFixed(2)}</p>
             </div>
-
             <Link href="/gastos/nuevo" passHref>
-            <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors shadow-sm h-full">
-                <Plus size={20} /> <span className="hidden sm:inline">Nuevo Gasto</span>
-            </button>
+                <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 transition-colors shadow-sm h-full">
+                    <Plus size={20} /> <span className="hidden sm:inline">Nuevo Gasto</span>
+                </button>
             </Link>
         </div>
       </header>
 
-      {/* TABS DE NAVEGACIÓN */}
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="mb-6">
         <Tabs.List className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
           <Tabs.Trigger value="todos" className="px-4 py-2 text-gray-600 border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 font-medium whitespace-nowrap">
@@ -383,32 +359,22 @@ export default function GastosPage() {
         </Tabs.List>
       </Tabs.Root>
 
-      {/* BARRA DE FILTROS SUPERIOR */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
-        
-        {/* 1. Buscador (Ocupa más espacio) */}
         <div className="md:col-span-5 bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border">
           <Search className="text-gray-400" size={20} />
           <input 
             type="text" 
-            placeholder={activeTab === 'madera' ? "Buscar remisión o beneficiario..." : "Buscar beneficiario, concepto..."} 
+            placeholder="Buscar..." 
             className="flex-1 outline-none text-gray-700 w-full"
             value={filtroTexto}
             onChange={e => setFiltroTexto(e.target.value)}
           />
-          {filtroTexto && (
-             <button onClick={() => setFiltroTexto('')} className="text-gray-400 hover:text-gray-600"><XCircle size={16}/></button>
-          )}
+          {filtroTexto && <button onClick={() => setFiltroTexto('')} className="text-gray-400"><XCircle size={16}/></button>}
         </div>
 
-        {/* 2. Filtro de Fecha (NUEVO) */}
         <div className="md:col-span-4 bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border">
           <Calendar className="text-gray-400" size={20} />
-          <select 
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="outline-none text-gray-700 bg-transparent cursor-pointer w-full font-medium"
-          >
+          <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="outline-none text-gray-700 bg-transparent cursor-pointer w-full font-medium">
             <option value="hoy">Hoy</option>
             <option value="ayer">Ayer</option>
             <option value="semana">Esta Semana</option>
@@ -418,15 +384,10 @@ export default function GastosPage() {
           </select>
         </div>
 
-        {/* 3. Filtro de Estado (Solo si no es madera, o también para madera si se requiere) */}
         {activeTab !== 'madera' && (
             <div className="md:col-span-3 bg-white p-2.5 rounded-xl shadow-sm flex items-center gap-2 border">
             <Filter className="text-gray-400" size={20} />
-            <select 
-                value={estadoFiltro}
-                onChange={(e) => setEstadoFiltro(e.target.value)}
-                className="outline-none text-gray-700 bg-transparent cursor-pointer w-full"
-            >
+            <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="outline-none text-gray-700 bg-transparent cursor-pointer w-full">
                 <option value="todos">Todos los Estados</option>
                 <option value="pendiente">⏳ Pendientes</option>
                 <option value="pagado">✅ Pagados</option>
@@ -435,7 +396,6 @@ export default function GastosPage() {
         )}
       </div>
 
-      {/* CONTENIDO PRINCIPAL */}
       <div className="animate-in fade-in duration-300">
         {loading ? (
             <div className="p-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div><p>Cargando registros...</p></div>

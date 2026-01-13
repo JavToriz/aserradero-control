@@ -77,7 +77,8 @@ export async function POST(req: Request) {
       concepto_general,
       concepto_detalle,
       documento_asociado_id,
-      documento_asociado_tipo
+      documento_asociado_tipo,
+      estado_pago
     } = body;
 
     if (!id_beneficiario || !monto || !concepto_general) {
@@ -86,6 +87,8 @@ export async function POST(req: Request) {
 
     const fechaISO = new Date(`${fecha_emision}T12:00:00Z`).toISOString();
     const montoNumerico = parseFloat(monto);
+
+    const estadoFinal = estado_pago || 'PAGADO';
 
     // --- LÓGICA DE NEGOCIO: CÁLCULO DE ACUMULADOS PARA PAGO DE MADERA ---
     let infoAcumulado = null;
@@ -124,7 +127,7 @@ export async function POST(req: Request) {
       };
     }
 
-    const estadoInicial = concepto_general === 'FLETE' ? 'PENDIENTE' : 'PAGADO';
+    //const estadoInicial = concepto_general === 'FLETE' ? 'PENDIENTE' : 'PAGADO';
 
     const nuevoGasto = await prisma.reciboGasto.create({
       data: {
@@ -139,7 +142,7 @@ export async function POST(req: Request) {
         concepto_detalle: concepto_detalle || null,
         documento_asociado_id: documento_asociado_id ? parseInt(documento_asociado_id) : null,
         documento_asociado_tipo: documento_asociado_tipo || null,
-        estado_pago: estadoInicial,
+        estado_pago: estadoFinal,
       },
     });
 

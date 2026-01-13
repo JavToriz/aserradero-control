@@ -1,13 +1,13 @@
-// app/api/remisiones/[id]/medida/route.ts
+//app/api/gastos/[id]/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
 
 interface Params {
-  params: Promise<{ id: string }>; // Fix para Next.js 15
+  params: Promise<{ id: string }>; // Soporte para Next.js 15
 }
 
-// PUT: Actualizar medida real
+// PUT: Actualizar un gasto existente (ej. cambiar estado de pago)
 export async function PUT(req: NextRequest, { params }: Params) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
@@ -15,34 +15,36 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const { id } = await params; // Await params
-    const id_remision = parseInt(id, 10);
+    const { id } = await params;
+    const id_gasto = parseInt(id, 10);
     const body = await req.json();
-    const { m3_recibidos_aserradero } = body;
+    
+    // Extraemos los campos que permitimos actualizar
+    const { estado_pago } = body;
 
-    // Validación
-    if (m3_recibidos_aserradero === undefined || m3_recibidos_aserradero < 0) {
-      return NextResponse.json({ message: 'La medida debe ser un número válido' }, { status: 400 });
+    // Validación básica
+    if (!estado_pago) {
+      return NextResponse.json({ message: 'Faltan datos para actualizar' }, { status: 400 });
     }
 
-    const remisionActualizada = await prisma.remision.update({
+    const gastoActualizado = await prisma.reciboGasto.update({
       where: {
-        id_remision: id_remision,
-        id_aserradero: authPayload.aserraderoId,
+        id_recibo_gasto: id_gasto,
+        id_aserradero: authPayload.aserraderoId, // Seguridad: asegurar que pertenece al aserradero
       },
       data: {
-        m3_recibidos_aserradero: parseFloat(m3_recibidos_aserradero),
+        estado_pago: estado_pago,
       },
     });
 
-    return NextResponse.json(remisionActualizada);
+    return NextResponse.json(gastoActualizado);
 
   } catch (error: any) {
-    // Si el error es P2025 (Record not found), devolvemos 404
+    // Si el registro no existe
     if (error.code === 'P2025') {
-        return NextResponse.json({ message: 'Remisión no encontrada' }, { status: 404 });
+        return NextResponse.json({ message: 'Gasto no encontrado' }, { status: 404 });
     }
-    console.error("Error al actualizar medida:", error);
-    return NextResponse.json({ message: 'Error al actualizar la medida' }, { status: 500 });
+    console.error("Error al actualizar gasto:", error);
+    return NextResponse.json({ message: 'Error al actualizar el gasto' }, { status: 500 });
   }
 }

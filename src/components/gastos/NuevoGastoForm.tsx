@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchAndCreateInput } from '@/components/ui/SearchAndCreateInput';
 import { PersonaFormModal } from '@/components/personas/PersonaFormModal';
-import { Save, Ban, Truck, Trees } from 'lucide-react'; // Agregué icono Trees para madera
+import { Switch } from '@/components/ui/Switch'; // <--- 1. IMPORTAMOS EL SWITCH
+import { Save, Ban, Truck, Trees, CheckCircle, Clock } from 'lucide-react';
 
 // Helper simple para números a letras
 function numeroALetras(num: number): string {
@@ -36,11 +37,13 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
   
   // Estados
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  // 2. ESTADO DE PAGO (Por defecto PAGADO)
+  const [estadoPago, setEstadoPago] = useState('PAGADO'); 
   
   const [beneficiario, setBeneficiario] = useState<Persona | null>(null);
   const [beneficiarioNombre, setBeneficiarioNombre] = useState('');
   
-  const [concepto, setConcepto] = useState('PAGO DE MADERA'); // Default sugerido por negocio
+  const [concepto, setConcepto] = useState('PAGO DE MADERA'); 
   const [detalle, setDetalle] = useState('');
   
   // Estado para Remisión (Flete o Madera)
@@ -53,7 +56,7 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
   const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 1. Efecto: Actualizar monto en letra
+  // Efecto: Actualizar monto en letra
   useEffect(() => {
     if (monto > 0) {
       setMontoLetra(numeroALetras(monto));
@@ -62,7 +65,7 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
     }
   }, [monto]);
 
-  // 2. Efecto: Autollenar detalle inteligente según el concepto y la remisión seleccionada
+  // Efecto: Autollenar detalle inteligente según el concepto y la remisión seleccionada
   useEffect(() => {
     if (remision && CONCEPTOS_CON_REMISION.includes(concepto)) {
       if (concepto === 'FLETE') {
@@ -77,15 +80,13 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
     e.preventDefault();
     if (!beneficiario || monto <= 0) return alert("Por favor complete Beneficiario y Monto.");
     
-    // Validación de negocio: Si es concepto de remisión, exigir que se seleccione una
+    // Validación de negocio
     if (CONCEPTOS_CON_REMISION.includes(concepto) && !remision) {
       return alert(`Para el concepto ${concepto} es obligatorio seleccionar una Remisión.`);
     }
 
     setIsSaving(true);
     const token = localStorage.getItem('sessionToken');
-
-    // Determinar si hay asociación documental
     const tieneAsociacion = CONCEPTOS_CON_REMISION.includes(concepto) && remision;
 
     try {
@@ -96,6 +97,7 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
         monto_letra: montoLetra,
         concepto_general: concepto,
         concepto_detalle: detalle,
+        estado_pago: estadoPago, // <--- 3. ENVIAMOS EL ESTADO AL BACKEND
         // Vinculación dinámica
         documento_asociado_id: tieneAsociacion ? remision!.id_remision : null,
         documento_asociado_tipo: tieneAsociacion ? 'REMISION' : null
@@ -136,7 +138,6 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
     </div>
   );
 
-  // Helper para saber si mostramos el buscador de remisiones
   const showRemisionSearch = CONCEPTOS_CON_REMISION.includes(concepto);
 
   return (
@@ -145,16 +146,38 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
       
       {/* SECCIÓN 1: Datos Generales */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Pago</label>
-          <input 
-            type="date" 
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            value={fecha} 
-            onChange={e => setFecha(e.target.value)} 
-            required
-          />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {estadoPago === 'PAGADO' ? 'Fecha de Pago' : 'Fecha de Emisión'}
+            </label>
+            <input 
+              type="date" 
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              value={fecha} 
+              onChange={e => setFecha(e.target.value)} 
+              required
+            />
+          </div>
+
+          {/* 4. COMPONENTE VISUAL PARA CAMBIAR EL ESTADO */}
+          <div className="flex flex-col gap-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
+             <label className="text-xs font-bold text-gray-500 uppercase">Estado del Gasto</label>
+             <div className="flex items-center gap-3">
+                <Switch 
+                  checked={estadoPago === 'PAGADO'}
+                  onChange={(checked) => setEstadoPago(checked ? 'PAGADO' : 'PENDIENTE')}
+                />
+                <span className={`text-sm font-bold flex items-center gap-1 ${estadoPago === 'PAGADO' ? 'text-green-600' : 'text-amber-600'}`}>
+                  {estadoPago === 'PAGADO' 
+                    ? <><CheckCircle size={16}/> PAGADO (Salida de Caja)</> 
+                    : <><Clock size={16}/> PENDIENTE (Cuenta por Pagar)</>
+                  }
+                </span>
+             </div>
+          </div>
         </div>
+
         <div>
           <SearchAndCreateInput<Persona>
             label="Beneficiario (Proveedor/Transportista)"
@@ -173,7 +196,7 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
       <div className="bg-gray-50 p-5 rounded-lg border border-gray-200">
         <label className="block text-sm font-medium text-gray-700 mb-3">Concepto del Gasto</label>
         
-        {/* Selector de Conceptos (Pills) */}
+        {/* Selector de Conceptos */}
         <div className="flex flex-wrap gap-2 mb-6">
           {CONCEPTOS.map(c => (
             <button
@@ -181,8 +204,6 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
               type="button"
               onClick={() => { 
                 setConcepto(c);
-                // Opcional: Si cambias entre Flete y Madera, podrías querer mantener la remisión, 
-                // pero por seguridad limpiamos para evitar confusiones.
                 setRemision(null); 
                 setRemisionQuery(''); 
                 setDetalle('');
@@ -222,7 +243,6 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
                 setRemision(r);
                 setRemisionQuery(r.folio_progresivo);
               }}
-              // No permitimos crear remisiones desde gastos, deben existir previamente
               onCreateNew={() => alert("La remisión debe ser creada primero en el módulo de Entradas.")}
               renderItem={renderRemisionItem}
             />
@@ -244,15 +264,25 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
       </div>
 
       {/* SECCIÓN 3: Monto */}
-      <div className="bg-blue-50 p-6 rounded-lg text-center border border-blue-100 shadow-inner">
-        <label className="block text-sm font-bold text-blue-800 mb-2 uppercase tracking-wide">Monto a Pagar</label>
+      <div className={`p-6 rounded-lg text-center border shadow-inner transition-colors duration-300 ${
+        estadoPago === 'PAGADO' ? 'bg-blue-50 border-blue-100' : 'bg-amber-50 border-amber-100'
+      }`}>
+        <label className={`block text-sm font-bold mb-2 uppercase tracking-wide ${
+             estadoPago === 'PAGADO' ? 'text-blue-800' : 'text-amber-800'
+        }`}>
+            {estadoPago === 'PAGADO' ? 'Monto a Pagar' : 'Monto Por Pagar'}
+        </label>
         <div className="flex justify-center items-center gap-2 relative">
-          <span className="text-3xl font-bold text-blue-600 absolute left-1/4">$</span>
+          <span className={`text-3xl font-bold absolute left-1/4 ${
+              estadoPago === 'PAGADO' ? 'text-blue-600' : 'text-amber-600'
+          }`}>$</span>
           <input 
             type="number"
             step="0.01"
             min="0"
-            className="w-1/2 text-4xl font-bold text-center border-b-2 border-blue-300 bg-transparent focus:outline-none focus:border-blue-600 text-gray-800 placeholder-gray-300"
+            className={`w-1/2 text-4xl font-bold text-center border-b-2 bg-transparent focus:outline-none text-gray-800 placeholder-gray-300 ${
+                estadoPago === 'PAGADO' ? 'border-blue-300 focus:border-blue-600' : 'border-amber-300 focus:border-amber-600'
+            }`}
             placeholder="0.00"
             value={monto === 0 ? '' : monto}
             onChange={e => setMonto(e.target.value === '' ? 0 : parseFloat(e.target.value))}
@@ -287,7 +317,6 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
 
     </form>
 
-    {/* Modales Auxiliares */}
     <PersonaFormModal 
       isOpen={isPersonaModalOpen}
       onClose={() => setIsPersonaModalOpen(false)}
