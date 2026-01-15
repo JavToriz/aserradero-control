@@ -1,4 +1,3 @@
-// components/remisiones/ModalMedidaReal.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -49,8 +48,6 @@ export function ModalMedidaReal({ isOpen, onClose, remision, onSuccess }: ModalP
 
       if (!res.ok) throw new Error('Error al guardar');
       
-      
-      
       setShowSuccess(true); 
 
     } catch (error) {
@@ -77,50 +74,51 @@ export function ModalMedidaReal({ isOpen, onClose, remision, onSuccess }: ModalP
   return (
     <>
       {/* Modal Principal (Formulario) */}
-      {/* Solo se muestra si isOpen es true Y no estamos mostrando el éxito (para evitar solapamiento feo) */}
-      <ModalContainer 
-        title={`Medición Real: ${remision.folio_progresivo}`} 
-        isOpen={isOpen && !showSuccess} 
-        onClose={onClose}
-      >
-        <form onSubmit={handleSubmit} className="p-4 space-y-6">
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-center">
-            <p className="text-sm text-gray-600">Volumen Documentado (Nota)</p>
-            <p className="text-2xl font-bold text-blue-800">{formatVisual(remision.volumen_total_m3)} m³</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Volumen Medido en Patio (m³)
-            </label>
-            <div className="flex items-center gap-2 relative">
-              <Ruler className="text-gray-400 absolute left-3" />
-              <input
-                type="number"
-                step="0.001"
-                className="w-full border rounded-lg pl-10 pr-3 py-3 text-xl font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="0"
-                value={medidaReal}
-                onChange={(e) => setMedidaReal(e.target.value)}
-                autoFocus
-                required
-              />
+      {/* CORRECCIÓN: Renderizado condicional con llaves en lugar de pasar prop 'isOpen' */}
+      {(isOpen && !showSuccess) && (
+        <ModalContainer 
+          title={`Medición Real: ${remision.folio_progresivo}`} 
+          onClose={onClose}
+        >
+          <form onSubmit={handleSubmit} className="p-4 space-y-6">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-center">
+              <p className="text-sm text-gray-600">Volumen Documentado (Nota)</p>
+              <p className="text-2xl font-bold text-blue-800">{formatVisual(remision.volumen_total_m3)} m³</p>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Si no hubo diferencia, deja el valor por defecto.
-            </p>
-          </div>
 
-          <div className="flex justify-end gap-4 pt-2">
-            <button type="button" onClick={onClose} className="bg-gray-100 text-gray-700 px-4 py-2 rounded flex items-center gap-2 hover:bg-gray-200">
-              <Ban size={18} /> Cancelar
-            </button>
-            <button type="submit" disabled={isSaving} className="bg-blue-600 text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-700 shadow-md">
-              <Save size={18} /> {isSaving ? 'Guardando...' : 'Confirmar Medida'}
-            </button>
-          </div>
-        </form>
-      </ModalContainer>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Volumen Medido en Patio (m³)
+              </label>
+              <div className="flex items-center gap-2 relative">
+                <Ruler className="text-gray-400 absolute left-3" />
+                <input
+                  type="number"
+                  step="0.001"
+                  className="w-full border rounded-lg pl-10 pr-3 py-3 text-xl font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="0"
+                  value={medidaReal}
+                  onChange={(e) => setMedidaReal(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Si no hubo diferencia, deja el valor por defecto.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-4 pt-2">
+              <button type="button" onClick={onClose} className="bg-gray-100 text-gray-700 px-4 py-2 rounded flex items-center gap-2 hover:bg-gray-200">
+                <Ban size={18} /> Cancelar
+              </button>
+              <button type="submit" disabled={isSaving} className="bg-blue-600 text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-700 shadow-md">
+                <Save size={18} /> {isSaving ? 'Guardando...' : 'Confirmar Medida'}
+              </button>
+            </div>
+          </form>
+        </ModalContainer>
+      )}
 
       {/* Modal de Éxito (Feedback Visual) */}
       <SuccessActionModal 
