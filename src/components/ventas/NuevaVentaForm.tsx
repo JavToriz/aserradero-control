@@ -53,7 +53,17 @@ export function NuevaVentaForm() {
   const [reembarque, setReembarque] = useState<ReembarqueSearch | null>(null);
   const [reembarqueQuery, setReembarqueQuery] = useState('');
 
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  // Función auxiliar para obtener la fecha local en formato YYYY-MM-DD
+  const getFechaLocal = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // ... dentro de tu componente
+  const [fecha, setFecha] = useState(getFechaLocal());
   const [tipoPago, setTipoPago] = useState('Efectivo');
   const [cuentaDestino, setCuentaDestino] = useState(''); 
   const [quienExpide, setQuienExpide] = useState(''); 

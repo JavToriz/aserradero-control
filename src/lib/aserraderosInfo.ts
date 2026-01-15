@@ -1,5 +1,6 @@
 // src/lib/actions/aserraderos.ts
 // Obtener información del aserradero por su ID para impresión
+// NOTA DE VENTA Y RECIBO DE GASTO
 
 // src/lib/actions/aserraderos.ts
 import { prisma } from '@/lib/prisma';

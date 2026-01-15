@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchAndCreateInput } from '@/components/ui/SearchAndCreateInput';
 import { PersonaFormModal } from '@/components/personas/PersonaFormModal';
-import { Switch } from '@/components/ui/Switch'; // <--- 1. IMPORTAMOS EL SWITCH
+import { Switch } from '@/components/ui/Switch2'; // <--- 1. IMPORTAMOS EL SWITCH
 import { Save, Ban, Truck, Trees, CheckCircle, Clock } from 'lucide-react';
 
 // Helper simple para números a letras
@@ -36,7 +36,17 @@ export function NuevoGastoForm({ onSaveSuccess }: NuevoGastoFormProps) {
   const router = useRouter();
   
   // Estados
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  // Función auxiliar para obtener la fecha local en formato YYYY-MM-DD
+  const getFechaLocal = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // ... dentro de tu componente
+  const [fecha, setFecha] = useState(getFechaLocal());
   // 2. ESTADO DE PAGO (Por defecto PAGADO)
   const [estadoPago, setEstadoPago] = useState('PAGADO'); 
   

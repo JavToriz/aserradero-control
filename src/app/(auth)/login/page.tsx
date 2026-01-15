@@ -1,106 +1,139 @@
-// src/app/(auth)/login/page.tsx
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // <--- 1. Importar useEffect
 import { useRouter } from 'next/navigation';
-import { LogIn } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+// import Image from 'next/image'; // (Si lo usas)
 
 export default function LoginPage() {
-  const [nombre_usuario, setNombreUsuario] = useState('');
-  const [hash_contrasena, setHashContrasena] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  // --- NUEVA LÓGICA DE AUTO-LIMPIEZA ---
+  useEffect(() => {
+    const limpiarSesion = async () => {
+      console.log("🧹 Limpiando sesión anterior...");
+      
+      // 1. Limpiar almacenamiento local (Tus tokens)
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('token'); // Por si acaso
+      localStorage.removeItem('tempAuthToken');
+
+      // 2. Cerrar sesión en Supabase (Limpia cookies de Supabase)
+      // Usamos 'await' para asegurar que se complete antes de intentar loguear de nuevo
+      await supabase.auth.signOut();
+      
+      // 3. Opcional: Limpiar cookies del navegador accesibles por JS
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+    };
+
+    limpiarSesion();
+  }, []); // El array vacío [] asegura que esto corra solo una vez al cargar la página
+  // --------------------------------------
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre_usuario, hash_contrasena }),
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await response.json();
+      if (authError) throw authError;
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Error al iniciar sesión.');
+      if (data.user) {
+        router.push('/seleccionar-aserradero');
       }
-
-      // 💡 Paso 1: Guardamos el token TEMPORAL que solo sirve para elegir el aserradero.
-      localStorage.setItem('tempAuthToken', data.token);
-
-      // Redireccionamos a la pantalla de selección de aserradero.
-      router.push('/seleccionar-aserradero');
-
     } catch (err: any) {
-      setError(err.message);
+      console.error('Login error:', err);
+      setError(err.message === 'Invalid login credentials' 
+        ? 'Credenciales incorrectas. Verifica tu correo y contraseña.' 
+        : 'Ocurrió un error al iniciar sesión.');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-lg">
-        <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">Control Aserradero</h1>
-            <p className="text-gray-500 mt-2">Bienvenido, por favor inicia sesión.</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
+      {/* ... (El resto de tu JSX se mantiene EXACTAMENTE IGUAL) ... */}
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <div className="text-center">
+          <h2 className="mt-2 text-3xl font-extrabold text-gray-900 tracking-tight">
+            Iniciar Sesión
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Sistema de Gestión de Aserradero
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label 
-              htmlFor="username" 
-              className="block text-sm font-medium text-gray-700"
-            >
-              Nombre de Usuario
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={nombre_usuario}
-              onChange={(e) => setNombreUsuario(e.target.value)}
-              required
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div>
-            <label 
-              htmlFor="password" 
-              className="block text-sm font-medium text-gray-700"
-            >
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={hash_contrasena}
-              onChange={(e) => setHashContrasena(e.target.value)}
-              required
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+           {/* ... tus inputs ... */}
+            <div className="rounded-md shadow-sm -space-y-px">
+            <div className="mb-4">
+              <label htmlFor="email-address" className="sr-only">Correo electrónico</label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="appearance-none rounded-lg relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors"
+                placeholder="Correo electrónico"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">Contraseña</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="appearance-none rounded-lg relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-colors"
+                placeholder="Contraseña"
+              />
+            </div>
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm">
-              {error}
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
+              <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
+          
+          {/* Aquí agregamos el link de recuperación que hicimos antes */}
+          <div className="flex items-center justify-end">
+            <div className="text-sm">
+                <a href="/recuperar-password" className="font-medium text-indigo-600 hover:text-indigo-500">
+                ¿Olvidaste tu contraseña?
+                </a>
+            </div>
+          </div>
 
           <div>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full flex justify-center items-center gap-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 transition-colors"
+              disabled={loading}
+              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white ${
+                loading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200`}
             >
-              <LogIn size={18} />
-              {isSubmitting ? 'Iniciando...' : 'Iniciar Sesión'}
+              {loading ? 'Verificando...' : 'Ingresar al Sistema'}
             </button>
           </div>
         </form>

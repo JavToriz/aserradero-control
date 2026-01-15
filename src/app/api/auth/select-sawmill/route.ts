@@ -2,28 +2,42 @@
 //Endpoint para seleccionar el aserradero y generar el token final
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthPayload } from '@/lib/auth';
 import jwt from 'jsonwebtoken';
+import { supabase } from '@/lib/supabase';
+import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
-  const authPayload = await getAuthPayload(req);
-  if (!authPayload) {
-    return NextResponse.json({ message: 'Token inválido o expirado' }, { status: 401 });
-  }
-
   try {
-    const { id_aserradero } = await req.json();
-    const userId = authPayload.userId;
-    
-    if (!id_aserradero) {
-      return NextResponse.json({ message: 'Se requiere id_aserradero' }, { status: 400 });
+    // 1. Obtenemos el token de Supabase y el ID del aserradero del body
+    const { id_aserradero, supabase_token } = await req.json();
+
+    if (!supabase_token || !id_aserradero) {
+      return NextResponse.json({ message: 'Datos incompletos' }, { status: 400 });
     }
 
-    // Verificamos que el usuario realmente tenga acceso a este aserradero
+    // 2. Verificamos el token de Supabase para obtener el usuario real
+    const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(supabase_token);
+
+    if (error || !supabaseUser) {
+      return NextResponse.json({ message: 'Token de Supabase inválido' }, { status: 401 });
+    }
+
+    // 3. Buscamos al usuario en NUESTRA base de datos usando el UID de Supabase
+    // NOTA: Debes asegurarte que tus usuarios en DB tengan el campo supabase_uid lleno
+    const dbUser = await prisma.usuario.findUnique({ 
+        where: { supabase_uid: supabaseUser.id },
+        include: { roles: { include: { rol: true } } }
+    });
+
+    if (!dbUser) {
+        return NextResponse.json({ message: 'Usuario no registrado en el sistema interno' }, { status: 404 });
+    }
+
+    // 4. Verificamos acceso al aserradero (Lógica existente)
     const tieneAcceso = await prisma.usuarioAserradero.findUnique({
         where: {
             id_usuario_id_aserradero: {
-                id_usuario: userId,
+                id_usuario: dbUser.id_usuario,
                 id_aserradero: id_aserradero
             }
         }
@@ -32,31 +46,33 @@ export async function POST(req: Request) {
     if (!tieneAcceso) {
         return NextResponse.json({ message: 'Acceso denegado a este aserradero' }, { status: 403 });
     }
-    
-    // Buscamos los datos completos del usuario para el token final
-    const user = await prisma.usuario.findUnique({ 
-        where: { id_usuario: userId },
-        include: { roles: { include: { rol: true } } }
-    });
 
-    if (!user) {
-        return NextResponse.json({ message: 'Usuario no encontrado' }, { status: 404 });
-    }
-
+    // 5. Generamos TU token de sesión (La lógica que ya tenías)
+    // Este token es el que usará el resto de la app, manteniendo tu middleware actual feliz.
     const secret = process.env.JWT_SECRET;
     if (!secret) throw new Error("JWT_SECRET no está definido");
 
-    // Creamos el token de sesión final, que ahora SÍ incluye el aserradero
     const sessionToken = jwt.sign(
       {
-        userId: user.id_usuario,
-        username: user.nombre_usuario,
-        aserraderoId: id_aserradero, // El aserradero seleccionado
-        roles: user.roles.map(userRole => userRole.rol.nombre_rol),
+        userId: dbUser.id_usuario,
+        username: dbUser.nombre_usuario,
+        aserraderoId: id_aserradero,
+        roles: dbUser.roles.map(r => r.rol.nombre_rol),
       },
       secret,
-      { expiresIn: '8h' } // Duración de una jornada laboral
+      { expiresIn: '4h' }
     );
+
+    // 2. Guardamos la cookie desde el servidor para que el Middleware la vea
+    const cookieStore = await cookies(); // await es necesario en Next 15, en 14 no, pero es seguro ponerlo
+    
+    cookieStore.set('sessionToken', sessionToken, {
+      httpOnly: false, // False para que el JS del cliente pueda leerla si es necesario
+      secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 4 * 60 * 60 // 4 horas (mismo que el token)
+    });
     
     return NextResponse.json({ sessionToken });
 

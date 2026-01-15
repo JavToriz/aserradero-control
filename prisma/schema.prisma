@@ -56,6 +56,7 @@ model Aserradero {
   predios                   Predio[]  @relation("AserraderoPredios")
   precios_base              PrecioBaseMadera[] 
   ajustes_patio             AjustePatio[]
+  //caja                      Caja[]      
 }
 
 model Rol {
@@ -68,7 +69,8 @@ model Usuario {
   id_usuario            Int      @id @default(autoincrement())
   id_aserradero_predeterminado Int?
   nombre_usuario        String   @unique
-  hash_contrasena       String
+  supabase_uid          String?  @unique // Para integración con Supabase Auth
+  //hash_contrasena       String
   nombre_completo       String?
   activo                Boolean  @default(true)
   fecha_creacion        DateTime @default(now())
@@ -516,6 +518,10 @@ model MovimientoCaja {
   id_movimiento   Int      @id @default(autoincrement())
   id_turno        Int
   id_nota_venta        Int?
+
+  id_recibo_gasto Int?     
+  recibo_gasto    ReciboGasto? @relation(fields: [id_recibo_gasto], references: [id_recibo_gasto], onDelete: SetNull)
+
   tipo_movimiento String
   monto           Decimal
   descripcion     String?
@@ -539,8 +545,10 @@ model ReciboGasto {
   concepto_detalle        String?
   documento_asociado_id   Int?
   documento_asociado_tipo String?
+  metodo_pago             String? @default("EFECTIVO")  // <-- AGREGA ESTO (Ej: "EFECTIVO", "TRANSFERENCIA")
   estado_pago  String  @default("PENDIENTE") // 'PENDIENTE', 'PAGADO'
 
+  movimientos_caja     MovimientoCaja[]
   aserradero           Aserradero @relation(fields: [id_aserradero], references: [id_aserradero], onDelete: Cascade)
   turno                TurnoCaja? @relation(fields: [id_turno], references: [id_turno], onDelete: SetNull)
   beneficiario         Persona    @relation("BeneficiarioGasto", fields: [id_beneficiario], references: [id_persona], onDelete: Restrict)

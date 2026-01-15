@@ -3,8 +3,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Printer, Search, Loader2, Calendar, XCircle } from 'lucide-react';
+import { Plus, Printer, Search, Loader2, Calendar, XCircle , Trash2, Edit} from 'lucide-react';
 import { ImprimirNotaModal } from '@/components/ventas/ImprimirNotaModal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+
 
 // --- HELPER PARA FECHAS (Reutilizado para consistencia) ---
 const isDateInRange = (dateString: string, filter: string): boolean => {
@@ -53,6 +55,10 @@ export default function VentasPage() {
   // Estado para el modal de impresión
   const [ventaParaImprimir, setVentaParaImprimir] = useState<any | null>(null);
 
+  // --- NUEVO ESTADO PARA ELIMINAR ---
+  const [ventaAEliminar, setVentaAEliminar] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     const fetchVentas = async () => {
       const token = localStorage.getItem('sessionToken');
@@ -72,6 +78,47 @@ export default function VentasPage() {
     };
     fetchVentas();
   }, []);
+
+  // --- NUEVA FUNCIÓN: Manejar Eliminación ---
+  const handleConfirmDelete = async () => {
+    if (!ventaAEliminar) return;
+    setIsDeleting(true);
+    const token = localStorage.getItem('sessionToken');
+    
+    try {
+      const res = await fetch(`/api/ventas/${ventaAEliminar.id_nota_venta}`, {
+        method: 'DELETE',
+        headers: { 
+            'Authorization': `Bearer ${token}` 
+        }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Error al eliminar');
+      }
+
+      // Éxito: Actualizar tabla localmente para evitar recarga
+      setVentas(prev => prev.filter(v => v.id_nota_venta !== ventaAEliminar.id_nota_venta));
+      setVentaAEliminar(null);
+      alert("Venta cancelada correctamente. El inventario ha sido restaurado.");
+
+    } catch (error: any) {
+      alert(`No se pudo cancelar la venta: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  /* ---  Manejar Edición ---
+  const handleEdit = (id: number) => {
+    // Opción A: Redirigir a una página de edición (recomendado)
+    // router.push(`/ventas/editar/${id}`);
+    
+    // Opción B (Temporal): Alertar al usuario
+    alert("Para mantener la integridad del inventario, la edición completa no está habilitada. Por favor, cancela esta venta y crea una nueva si necesitas cambiar productos.");
+  }; */
 
   // Lógica de Filtrado y Cálculo de Totales
   const { ventasFiltradas, totalVentas } = useMemo(() => {
@@ -158,7 +205,7 @@ export default function VentasPage() {
         </div>
       </div>
 
-      {/* Tabla de Ventas */}
+      {/* Tabla de Ventas (MODIFICADA COLUMNA ACCIONES) */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden animate-in fade-in duration-300">
         {loading ? (
           <div className="p-12 text-center flex flex-col items-center justify-center text-gray-500">
@@ -203,13 +250,33 @@ export default function VentasPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button 
-                        onClick={() => setVentaParaImprimir(venta)}
-                        className="text-gray-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50 rounded-full"
-                        title="Ver / Imprimir Nota"
-                      >
-                        <Printer size={18} />
-                      </button>
+                      <div className="flex justify-center items-center gap-2">
+                          <button 
+                            onClick={() => setVentaParaImprimir(venta)}
+                            className="text-gray-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50 rounded-full"
+                            title="Imprimir Nota"
+                          >
+                            <Printer size={18} />
+                          </button>
+                          
+                          {/* BOTÓN EDITAR 
+                          <button 
+                            onClick={() => handleEdit(venta.id_nota_venta)}
+                            className="text-gray-400 hover:text-orange-500 transition-colors p-2 hover:bg-orange-50 rounded-full"
+                            title="Editar Datos"
+                          >
+                            <Edit size={18} />
+                          </button>*/}
+
+                          {/* BOTÓN ELIMINAR */}
+                          <button 
+                            onClick={() => setVentaAEliminar(venta)}
+                            className="text-gray-400 hover:text-red-600 transition-colors p-2 hover:bg-red-50 rounded-full"
+                            title="Cancelar Venta"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -217,12 +284,7 @@ export default function VentasPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-gray-400 flex flex-col items-center justify-center w-full">
                      <Search size={48} className="text-gray-200 mb-2" />
-                     <p>No se encontraron ventas con los filtros actuales.</p>
-                     {dateFilter !== 'todos' && (
-                        <button onClick={() => setDateFilter('todos')} className="text-blue-600 text-sm hover:underline mt-2">
-                            Ver todo el historial
-                        </button>
-                     )}
+                     <p>No se encontraron ventas.</p>
                   </td>
                 </tr>
               )}
@@ -231,7 +293,7 @@ export default function VentasPage() {
         )}
       </div>
 
-      {/* Modal para imprimir historial */}
+      {/* MODAL DE IMPRESIÓN */}
       {ventaParaImprimir && (
         <ImprimirNotaModal 
           isOpen={!!ventaParaImprimir}
@@ -239,6 +301,18 @@ export default function VentasPage() {
           venta={ventaParaImprimir}
         />
       )}
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <ConfirmationModal
+        isOpen={!!ventaAEliminar}
+        onClose={() => setVentaAEliminar(null)}
+        onConfirm={handleConfirmDelete}
+        title="¿Cancelar esta Venta?"
+        message={`Estás a punto de cancelar la nota ${ventaAEliminar?.folio_nota}. Esta acción devolverá los productos al inventario y ajustará la caja si fue pagada en efectivo. ¿Estás seguro?`}
+        confirmText={isDeleting ? "Cancelando..." : "Sí, Cancelar Venta"}
+        cancelText="Volver"
+        variant="danger" // Asumiendo que tu modal soporta variantes, si no, elimina esta prop
+      />
     </div>
   );
 }

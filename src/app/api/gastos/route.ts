@@ -1,51 +1,40 @@
+// app/api/gastos/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
+import { CajaService } from "@/lib/caja-service"; // <--- 1. IMPORTAR SERVICIO
 
-// GET: Listar historial de gastos con Folios Reales
+// --- GET (Sin cambios importantes, solo importaciones) ---
 export async function GET(req: NextRequest) {
+  // ... (Tu código GET existente se queda EXACTAMENTE IGUAL) ...
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 
   try {
-    // 1. Obtener gastos
     const gastos = await prisma.reciboGasto.findMany({
-      where: {
-        id_aserradero: authPayload.aserraderoId,
-      },
+      where: { id_aserradero: authPayload.aserraderoId },
       include: {
-        beneficiario: {
-          select: { nombre_completo: true }
-        },
-        responsable_entrega: {
-          select: { nombre_completo: true }
-        }
+        beneficiario: { select: { nombre_completo: true } },
+        responsable_entrega: { select: { nombre_completo: true } }
       },
-      orderBy: {
-        fecha_emision: 'desc',
-      },
+      orderBy: { id_recibo_gasto: 'desc' },
     });
 
-    // 2. ENRIQUECIMIENTO: Obtener los folios de las remisiones relacionadas
-    // Filtramos los IDs de remisiones únicas para no consultar la misma 20 veces
     const remisionIds = Array.from(new Set(
       gastos
         .filter(g => g.documento_asociado_tipo === 'REMISION' && g.documento_asociado_id)
         .map(g => g.documento_asociado_id as number)
     ));
 
-    // Consultamos solo los folios necesarios
     const remisiones = await prisma.remision.findMany({
       where: { id_remision: { in: remisionIds } },
       select: { id_remision: true, folio_progresivo: true }
     });
 
-    // Creamos un mapa rápido para búsqueda: ID -> Folio
     const folioMap = new Map(remisiones.map(r => [r.id_remision, r.folio_progresivo]));
 
-    // 3. Adjuntamos el folio real a cada objeto de gasto
     const gastosConFolio = gastos.map(g => ({
       ...g,
       folio_remision_asociada: (g.documento_asociado_tipo === 'REMISION' && g.documento_asociado_id)
@@ -60,7 +49,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Crear nuevo recibo de gasto (Mantenemos la lógica de acumulados)
+
+// --- POST (Modificado para Caja) ---
 export async function POST(req: Request) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId || !authPayload.userId) {
@@ -78,7 +68,8 @@ export async function POST(req: Request) {
       concepto_detalle,
       documento_asociado_id,
       documento_asociado_tipo,
-      estado_pago
+      estado_pago,
+      metodo_pago // <--- Leemos esto (o asumimos Efectivo)
     } = body;
 
     if (!id_beneficiario || !monto || !concepto_general) {
@@ -87,34 +78,42 @@ export async function POST(req: Request) {
 
     const fechaISO = new Date(`${fecha_emision}T12:00:00Z`).toISOString();
     const montoNumerico = parseFloat(monto);
+    const id_aserradero = authPayload.aserraderoId;
 
     const estadoFinal = estado_pago || 'PAGADO';
+    // Si no envían metodo_pago, asumimos EFECTIVO por seguridad, o ajústalo según tu UI.
+    const metodoPagoFinal = metodo_pago || 'EFECTIVO'; 
 
-    // --- LÓGICA DE NEGOCIO: CÁLCULO DE ACUMULADOS PARA PAGO DE MADERA ---
+    // --- 2. LÓGICA DE CAJA: Validar Turno ---
+    let idTurnoActivo = null;
+    const turno = await CajaService.getTurnoActivo(id_aserradero);
+    
+    if (turno) idTurnoActivo = turno.id_turno;
+
+    // Si pagamos en EFECTIVO ahora mismo, necesitamos caja abierta
+    if (metodoPagoFinal === 'EFECTIVO' && estadoFinal === 'PAGADO' && !turno) {
+      return NextResponse.json({ 
+        message: '⚠️ CAJA CERRADA. Abre un turno para registrar gastos pagados en efectivo.' 
+      }, { status: 409 });
+    }
+
+    // --- LÓGICA DE ACUMULADOS (Tu código original) ---
     let infoAcumulado = null;
-
-    if (
-      concepto_general === 'PAGO DE MADERA' && 
-      documento_asociado_id && 
-      documento_asociado_tipo === 'REMISION'
-    ) {
+    if (concepto_general === 'PAGO DE MADERA' && documento_asociado_id && documento_asociado_tipo === 'REMISION') {
       const idRemision = parseInt(documento_asociado_id);
-
       const historialPagos = await prisma.reciboGasto.aggregate({
         _sum: { monto: true },
         where: {
-          id_aserradero: authPayload.aserraderoId,
+          id_aserradero: id_aserradero,
           documento_asociado_id: idRemision,
           documento_asociado_tipo: 'REMISION',
           concepto_general: 'PAGO DE MADERA',
         }
       });
-
       const remisionData = await prisma.remision.findUnique({
         where: { id_remision: idRemision },
         select: { folio_progresivo: true, volumen_total_m3: true }
       });
-
       const totalPagadoPrevio = Number(historialPagos._sum.monto || 0);
       const nuevoTotalAcumulado = totalPagadoPrevio + montoNumerico;
 
@@ -127,12 +126,11 @@ export async function POST(req: Request) {
       };
     }
 
-    //const estadoInicial = concepto_general === 'FLETE' ? 'PENDIENTE' : 'PAGADO';
-
+    // --- CREACIÓN DEL GASTO ---
     const nuevoGasto = await prisma.reciboGasto.create({
       data: {
-        id_aserradero: authPayload.aserraderoId,
-        id_turno: null, 
+        id_aserradero: id_aserradero,
+        id_turno: idTurnoActivo, // <--- Guardamos el turno real
         fecha_emision: fechaISO,
         id_beneficiario: parseInt(id_beneficiario),
         id_responsable_usuario: authPayload.userId,
@@ -143,8 +141,20 @@ export async function POST(req: Request) {
         documento_asociado_id: documento_asociado_id ? parseInt(documento_asociado_id) : null,
         documento_asociado_tipo: documento_asociado_tipo || null,
         estado_pago: estadoFinal,
+        metodo_pago: metodoPagoFinal // <--- Guardamos método de pago
       },
     });
+
+    // --- 3. LÓGICA DE CAJA: Registrar Salida ---
+    if (metodoPagoFinal === 'EFECTIVO' && estadoFinal === 'PAGADO') {
+      await CajaService.registrarMovimientoEfectivo({
+        id_aserradero: id_aserradero,
+        monto: montoNumerico,
+        tipo: 'EGRESO_GASTO',
+        descripcion: `${concepto_general}: ${concepto_detalle || 'Sin detalle'}`,
+        id_recibo_gasto: nuevoGasto.id_recibo_gasto
+      });
+    }
 
     return NextResponse.json({
       ...nuevoGasto,

@@ -1,16 +1,21 @@
-// app/api/ventas/route.ts
-// Endpoint principal para crear la Nota de Venta y descontar inventario.
+import { NextRequest, NextResponse } from 'next/server';
 
-import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
+import { CajaService } from '@/lib/caja-service';
 
+// -----------------------------------------------------------------------------
+// GET - Obtener historial de ventas
+// -----------------------------------------------------------------------------
 
-// --- GET para listar el historial de ventas ---
 export async function GET(req: NextRequest) {
   const authPayload = await getAuthPayload(req);
+
   if (!authPayload || !authPayload.aserraderoId) {
-    return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
+    return NextResponse.json(
+      { message: 'No autorizado' },
+      { status: 401 }
+    );
   }
 
   try {
@@ -20,153 +25,231 @@ export async function GET(req: NextRequest) {
       },
       include: {
         cliente: {
-          select: { nombre_completo: true, domicilio_poblacion: true, rfc: true }
+          select: {
+            nombre_completo: true,
+            domicilio_poblacion: true,
+            rfc: true,
+          },
         },
         usuario: {
-          select: { nombre_completo: true } // Quién la vendió
+          select: {
+            nombre_completo: true,
+          },
         },
-        // Incluimos detalles para poder reconstruir la nota al imprimir
         detalles: {
           include: {
             producto: {
               include: {
                 atributos_madera: true,
-                atributos_triplay: true
-              }
-            }
-          }
+                atributos_triplay: true,
+              },
+            },
+          },
         },
-        vehiculo: true // Datos del vehículo para la nota
+        vehiculo: true,
       },
       orderBy: {
-        fecha_salida: 'desc', // Las más recientes primero
+        folio_nota: 'desc',
       },
     });
 
     return NextResponse.json(ventas);
-
   } catch (error) {
-    console.error("Error al obtener historial de ventas:", error);
-    return NextResponse.json({ message: 'Error al obtener ventas' }, { status: 500 });
+    console.error('Error al obtener historial de ventas:', error);
+    return NextResponse.json(
+      { message: 'Error al obtener ventas' },
+      { status: 500 }
+    );
   }
 }
 
+// -----------------------------------------------------------------------------
+// POST - Crear venta (con lógica de caja)
+// -----------------------------------------------------------------------------
+
 export async function POST(req: Request) {
   const authPayload = await getAuthPayload(req);
+
   if (!authPayload || !authPayload.aserraderoId || !authPayload.userId) {
-    return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
+    return NextResponse.json(
+      { message: 'No autorizado' },
+      { status: 401 }
+    );
   }
 
   try {
     const body = await req.json();
-    const { 
-      id_cliente, 
-      fecha_salida, // Viene como string YYYY-MM-DD
-      tipo_pago, 
-      cuenta_destino, // <-- Recibimos el nombre de la cuenta (si es transferencia)
-      id_reembarque,  // <-- Recibimos el ID del reembarque vinculado
-      productos_venta, // Array con la estructura de venta + origen del stock
+
+    const {
+      id_cliente,
+      fecha_salida,
+      tipo_pago,
+      cuenta_destino,
+      id_reembarque,
+      productos_venta,
       total_venta,
-      id_vehiculo, // Opcional
-      nombre_quien_expide // Texto libre para la firma
+      id_vehiculo,
+      // nombre_quien_expide, // No se usa en la lógica actual, pero viene del body
     } = body;
 
-    // Validación básica
     if (!id_cliente || !productos_venta || productos_venta.length === 0) {
-      return NextResponse.json({ message: 'Datos incompletos para la venta' }, { status: 400 });
+      return NextResponse.json(
+        { message: 'Datos incompletos para la venta' },
+        { status: 400 }
+      );
     }
 
-    // FIX FECHA: Ajuste de zona horaria
     const fechaISO = new Date(`${fecha_salida}T12:00:00Z`).toISOString();
+    const id_aserradero = authPayload.aserraderoId;
 
-    // INICIO DE LA TRANSACCIÓN
-    const nuevaNota = await prisma.$transaction(async (tx) => {
-      
-      // 1. Crear la Nota de Venta (Cabecera)
-      // Generamos un folio simple basado en timestamp o secuencia (aquí simulado)
-      // Idealmente tendrías una tabla de Folios, pero usaremos el ID incremental.
-      const nota = await tx.notaVenta.create({
-        data: {
-          id_aserradero: authPayload.aserraderoId,
-          // Nota: id_turno es requerido en tu schema, aquí pongo null temporalmente 
-          // si lo hiciste opcional, o deberías buscar el turno abierto. 
-          // Asumiré que lo hiciste opcional como sugerí antes, o pon un ID dummy.
-          id_turno: null, 
-          folio_nota: "PENDIENTE", // Se actualizará con el ID
-          fecha_salida: fechaISO,
-          id_cliente: id_cliente,
-          total_venta: total_venta,
-          tipo_pago: tipo_pago,
-          cuenta_destino_transferencia: tipo_pago === 'Transferencia' ? cuenta_destino : null,
-          id_reembarque_asociado: id_reembarque ? parseInt(id_reembarque) : null,
-          pagado: tipo_pago === 'Efectivo', // Si es efectivo, asume pagado (ajustar según lógica)
-          id_usuario: authPayload.userId,
-          id_vehiculo: id_vehiculo || null,
+    // -------------------------------------------------------------------------
+    // Lógica de caja - Validar turno activo
+    // -------------------------------------------------------------------------
+
+    let idTurnoActivo: number | null = null;
+
+    const turno = await CajaService.getTurnoActivo(id_aserradero);
+
+    if (turno) {
+      idTurnoActivo = turno.id_turno;
+    }
+
+    if (tipo_pago === 'Efectivo' && !turno) {
+      return NextResponse.json(
+        {
+          message:
+            'LA CAJA ESTÁ CERRADA. Debes abrir un turno para cobrar en efectivo.',
         },
-      });
+        { status: 409 }
+      );
+    }
 
-      // Actualizamos el folio con el ID generado para que sea único y consecutivo
-      const folioGenerado = `NV-${nota.id_nota_venta.toString().padStart(5, '0')}`;
-      await tx.notaVenta.update({
-        where: { id_nota_venta: nota.id_nota_venta },
-        data: { folio_nota: folioGenerado }
-      });
+    const esVentaPagada = tipo_pago !== 'Crédito';
 
-      // 2. Procesar cada producto vendido
-      for (const item of productos_venta) {
-        // a) Crear el Detalle de Nota de Venta (Línea de la factura)
-        await tx.detalleNotaVenta.create({
+    // -------------------------------------------------------------------------
+    // Transacción
+    // -------------------------------------------------------------------------
+
+    const nuevaNota = await prisma.$transaction(
+      async (tx) => {
+        // 1. Crear la cabecera de la nota
+        const nota = await tx.notaVenta.create({
           data: {
-            id_aserradero: authPayload.aserraderoId,
-            id_nota_venta: nota.id_nota_venta,
-            id_producto_catalogo: item.id_producto_catalogo,
-            cantidad_piezas: item.cantidad_total,
-            precio_unitario_venta: item.precio_unitario,
-            importe_linea: item.importe,
+            id_aserradero,
+            id_turno: idTurnoActivo,
+            folio_nota: 'PENDIENTE',
+            fecha_salida: fechaISO,
+            id_cliente,
+            total_venta,
+            tipo_pago,
+            cuenta_destino_transferencia:
+              tipo_pago === 'Transferencia' ? cuenta_destino : null,
+            id_reembarque_asociado: id_reembarque
+              ? parseInt(id_reembarque)
+              : null,
+            pagado: esVentaPagada,
+            id_usuario: authPayload.userId,
+            id_vehiculo: id_vehiculo || null,
           },
         });
 
-        // b) Descontar Inventario (Lógica Multi-Ubicación)
-        // 'item.origenes' es un array: [{ id_stock: 1, cantidad: 5 }, { id_stock: 2, cantidad: 5 }]
-        for (const origen of item.origenes) {
-          // Validar existencia y cantidad (opcional, pero recomendado)
-          const stockLote = await tx.stockProductoTerminado.findUnique({
-            where: { id_stock: origen.id_stock }
-          });
+        // 2. Generar Folio
+        const folioGenerado = `NV-${nota.id_nota_venta
+          .toString()
+          .padStart(5, '0')}`;
 
-          if (!stockLote || stockLote.piezas_actuales < origen.cantidad) {
-            throw new Error(`Stock insuficiente en el lote ${origen.id_stock}`);
-          }
+        await tx.notaVenta.update({
+          where: { id_nota_venta: nota.id_nota_venta },
+          data: { folio_nota: folioGenerado },
+        });
 
-          // Restar piezas
-          await tx.stockProductoTerminado.update({
-            where: { id_stock: origen.id_stock },
-            data: { piezas_actuales: { decrement: origen.cantidad } }
-          });
-
-          // Registrar Movimiento
-          await tx.movimientoInventario.create({
+        // 3. Procesar Productos y Movimientos de Inventario
+        for (const item of productos_venta) {
+          // Crear detalle de venta
+          await tx.detalleNotaVenta.create({
             data: {
-              id_aserradero: authPayload.aserraderoId,
-              id_stock_afectado: origen.id_stock,
-              id_responsable_usuario: authPayload.userId,
-              fecha_movimiento: new Date().toISOString(),
-              piezas_movidas: -origen.cantidad, // Negativo porque es salida
-              ubicacion_origen: stockLote.ubicacion,
-              ubicacion_destino: null, // Sale del aserradero (Venta)
-              id_nota_venta_salida: nota.id_nota_venta,
-            }
+              id_aserradero,
+              id_nota_venta: nota.id_nota_venta,
+              id_producto_catalogo: item.id_producto_catalogo,
+              cantidad_piezas: item.cantidad_total,
+              precio_unitario_venta: item.precio_unitario,
+              importe_linea: item.importe,
+            },
           });
-        }
-      }
 
-      return { ...nota, folio_nota: folioGenerado };
-    });
+          // Descontar de cada lote (origen)
+          for (const origen of item.origenes) {
+            const stockLote = await tx.stockProductoTerminado.findUnique({
+              where: { id_stock: origen.id_stock },
+            });
+
+            if (
+              !stockLote ||
+              stockLote.piezas_actuales < origen.cantidad
+            ) {
+              throw new Error(
+                `Stock insuficiente en el lote ${origen.id_stock}. Disponibles: ${stockLote?.piezas_actuales}, Solicitadas: ${origen.cantidad}`
+              );
+            }
+
+            // Actualizar stock
+            await tx.stockProductoTerminado.update({
+              where: { id_stock: origen.id_stock },
+              data: {
+                piezas_actuales: {
+                  decrement: origen.cantidad,
+                },
+              },
+            });
+
+            // Registrar movimiento histórico
+            await tx.movimientoInventario.create({
+              data: {
+                id_aserradero,
+                id_stock_afectado: origen.id_stock,
+                id_responsable_usuario: authPayload.userId,
+                fecha_movimiento: new Date().toISOString(),
+                piezas_movidas: -origen.cantidad, // Negativo porque es salida
+                ubicacion_origen: stockLote.ubicacion,
+                ubicacion_destino: null,
+                id_nota_venta_salida: nota.id_nota_venta,
+              },
+            });
+          }
+        }
+
+        return {
+          ...nota,
+          folio_nota: folioGenerado,
+        };
+      },
+      {
+        // CONFIGURACIÓN DE TIMEOUT
+        maxWait: 5000, // Tiempo máximo esperando a que se abra la transacción
+        timeout: 20000, // Tiempo máximo de ejecución (20s) para evitar el error de 5s
+      }
+    );
+
+    // -------------------------------------------------------------------------
+    // Registrar ingreso en caja (Fuera de la transacción principal de BD para evitar bloqueos extra)
+    // -------------------------------------------------------------------------
+
+    if (tipo_pago === 'Efectivo') {
+      await CajaService.registrarMovimientoEfectivo({
+        id_aserradero,
+        monto: total_venta,
+        tipo: 'INGRESO_VENTA',
+        descripcion: `Venta Nota #${nuevaNota.folio_nota}`,
+        id_nota_venta: nuevaNota.id_nota_venta,
+      });
+    }
 
     return NextResponse.json(nuevaNota, { status: 201 });
-
   } catch (error: any) {
-    console.error("Error al crear la venta:", error);
-    return NextResponse.json({ message: error.message || 'Error al procesar la venta' }, { status: 500 });
+    console.error('Error al crear la venta:', error);
+    return NextResponse.json(
+      { message: error.message || 'Error al procesar la venta' },
+      { status: 500 }
+    );
   }
 }

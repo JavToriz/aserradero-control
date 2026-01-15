@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Printer, Search, Truck, Filter, Calendar, XCircle, Trees, ChevronDown, ChevronUp } from 'lucide-react';
+// --- AGREGADO: Import Trash2 ---
+import { Plus, Printer, Search, Truck, Filter, Calendar, XCircle, Trees, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { ImprimirReciboModal } from '@/components/gastos/ImprimirReciboModal';
 import * as Tabs from '@radix-ui/react-tabs';
-import { Switch } from '@/components/ui/Switch'; 
+import { Switch } from '@/components/ui/Switch2'; 
+// --- AGREGADO: Import ConfirmationModal ---
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 // --- TIPOS ---
 type Gasto = {
@@ -13,10 +16,11 @@ type Gasto = {
   fecha_emision: string;
   monto: number;
   concepto_general: string;
-  estado_pago: string; // 'PAGADO' | 'PENDIENTE'
+  estado_pago: string;
   documento_asociado_id: number | null;
   folio_remision_asociada?: string | null;
   beneficiario: { nombre_completo: string };
+  // Tipado dinámico para campos extra que puedan venir de la DB
   [key: string]: any;
 };
 
@@ -66,6 +70,10 @@ export default function GastosPage() {
   const [gastoParaImprimir, setGastoParaImprimir] = useState<any | null>(null);
   const [expandedRemisiones, setExpandedRemisiones] = useState<Record<number, boolean>>({});
 
+  // --- NUEVO: Estados para Eliminar ---
+  const [gastoAEliminar, setGastoAEliminar] = useState<Gasto | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchGastos = async () => {
     const token = localStorage.getItem('sessionToken');
     try {
@@ -82,15 +90,55 @@ export default function GastosPage() {
     fetchGastos();
   }, []);
 
-  const toggleEstadoPago = async (gasto: Gasto) => {
-    // --- CAMBIO 1: ELIMINAMOS LA RESTRICCIÓN DE CONCEPTOS ---
-    // Ahora permite cambiar el estado a CUALQUIER tipo de gasto (Nómina, Mantenimiento, etc.)
+  // --- Manejador de Eliminación MEJORADO ---
+  const handleConfirmDelete = async () => {
+    if (!gastoAEliminar) return;
+    setIsDeleting(true);
+    const token = localStorage.getItem('sessionToken');
     
+    // Guardamos datos para el mensaje de éxito antes de borrar el estado
+    const monto = Number(gastoAEliminar.monto).toFixed(2);
+    const concepto = gastoAEliminar.concepto_general;
+
+    try {
+      const res = await fetch(`/api/gastos/${gastoAEliminar.id_recibo_gasto}`, {
+        method: 'DELETE',
+        headers: { 
+            'Authorization': `Bearer ${token}` 
+        }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Error desconocido en el servidor');
+      }
+
+      // 1. Éxito: Actualizamos la tabla
+      setGastos(prev => prev.filter(g => g.id_recibo_gasto !== gastoAEliminar.id_recibo_gasto));
+      
+      // 2. Cerramos el modal de confirmación
+      setGastoAEliminar(null);
+
+      // 3. Feedback visual (Alert de éxito)
+      // Usamos un pequeño timeout para que se sienta natural tras cerrar el modal
+      setTimeout(() => {
+        alert(`Gasto eliminado correctamente.`);
+      }, 300);
+      
+    } catch (error: any) {
+      console.error("Error capturado:", error);
+      alert(`❌ No se pudo eliminar: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleEstadoPago = async (gasto: Gasto) => {
     const nuevoEstado = gasto.estado_pago === 'PAGADO' ? 'PENDIENTE' : 'PAGADO';
     const token = localStorage.getItem('sessionToken');
     const gastosPrevios = [...gastos];
     
-    // Actualización Optimista
     setGastos(prev => prev.map(g => g.id_recibo_gasto === gasto.id_recibo_gasto ? { ...g, estado_pago: nuevoEstado } : g));
 
     try {
@@ -105,7 +153,7 @@ export default function GastosPage() {
       if (!res.ok) throw new Error('Falló la actualización');
     } catch (error) {
       console.error(error);
-      setGastos(gastosPrevios); // Revertir en caso de error
+      setGastos(gastosPrevios); 
       alert("No se pudo actualizar el estado.");
     }
   };
@@ -139,8 +187,6 @@ export default function GastosPage() {
     return { datosFiltrados: filtrados, totalFiltrado: total };
   }, [gastos, filtroTexto, activeTab, estadoFiltro, dateFilter]);
 
-
-  // --- AGRUPACIÓN PARA VISTA MADERA ---
   const gruposMadera = useMemo(() => {
     if (activeTab !== 'madera') return [];
     
@@ -170,8 +216,7 @@ export default function GastosPage() {
     );
   }, [datosFiltrados, activeTab]);
 
-
-  // --- RENDERIZADO DE VISTAS ---
+  // --- RENDERIZADO TABLA GENERAL (Con botón eliminar) ---
   const renderTablaGeneral = () => (
     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <table className="w-full text-sm text-left">
@@ -203,8 +248,6 @@ export default function GastosPage() {
                 <td className="px-6 py-4 font-bold text-red-600">${Number(g.monto).toFixed(2)}</td>
                 
                 <td className="px-6 py-4 text-center">
-                    {/* --- CAMBIO 2: SWITCH UNIVERSAL --- */}
-                    {/* Quitamos el condicional (if concepto === ...). Ahora el Switch se muestra SIEMPRE */}
                     <div className="flex flex-col items-center justify-center gap-1">
                         <Switch 
                             checked={g.estado_pago === 'PAGADO'}
@@ -217,13 +260,24 @@ export default function GastosPage() {
                 </td>
 
                 <td className="px-6 py-4 text-center">
-                <button 
-                    onClick={() => setGastoParaImprimir(g)}
-                    className="text-gray-500 hover:text-blue-600 transition-colors"
-                    title="Ver Recibo"
-                >
-                    <Printer size={18} />
-                </button>
+                    <div className="flex items-center justify-center gap-2">
+                        <button 
+                            onClick={() => setGastoParaImprimir(g)}
+                            className="text-gray-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50 rounded-full"
+                            title="Ver Recibo"
+                        >
+                            <Printer size={18} />
+                        </button>
+                        
+                        {/* BOTÓN ELIMINAR */}
+                        <button 
+                            onClick={() => setGastoAEliminar(g)}
+                            className="text-gray-400 hover:text-red-600 transition-colors p-2 hover:bg-red-50 rounded-full"
+                            title="Eliminar Gasto"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
                 </td>
             </tr>
             ))}
@@ -235,6 +289,7 @@ export default function GastosPage() {
     </div>
   );
 
+  // --- RENDERIZADO VISTA MADERA (Con botón eliminar) ---
   const renderVistaMadera = () => {
     if (gruposMadera.length === 0) {
         return (
@@ -310,6 +365,15 @@ export default function GastosPage() {
                                                     title="Imprimir"
                                                 >
                                                     <Printer size={16} />
+                                                </button>
+
+                                                {/* BOTÓN ELIMINAR (Acordeón) */}
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setGastoAEliminar(pago); }}
+                                                    className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"
+                                                    title="Eliminar"
+                                                >
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </div>
@@ -389,8 +453,8 @@ export default function GastosPage() {
             <Filter className="text-gray-400" size={20} />
             <select value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)} className="outline-none text-gray-700 bg-transparent cursor-pointer w-full">
                 <option value="todos">Todos los Estados</option>
-                <option value="pendiente">⏳ Pendientes</option>
-                <option value="pagado">✅ Pagados</option>
+                <option value="pendiente"> Pendientes</option>
+                <option value="pagado">Pagados</option>
             </select>
             </div>
         )}
@@ -410,6 +474,18 @@ export default function GastosPage() {
         isOpen={!!gastoParaImprimir} 
         onClose={() => setGastoParaImprimir(null)} 
         gasto={gastoParaImprimir} 
+      />
+
+      {/* --- NUEVO: Modal de Confirmación --- */}
+      <ConfirmationModal
+        isOpen={!!gastoAEliminar}
+        onClose={() => setGastoAEliminar(null)}
+        onConfirm={handleConfirmDelete}
+        title="¿Eliminar Gasto?"
+        message={`Estás a punto de eliminar el gasto de $${Number(gastoAEliminar?.monto || 0).toFixed(2)} (${gastoAEliminar?.concepto_general}). Si estaba pagado en efectivo, el dinero regresará a la caja.`}
+        confirmText={isDeleting ? "Eliminando..." : "Sí, Eliminar"}
+        cancelText="Volver"
+        variant="danger"
       />
     </div>
   );

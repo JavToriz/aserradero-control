@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
         sku: s.producto.sku,
         unidad_medida: s.producto.unidad_medida,
         precio_venta: Number(s.producto.precio_venta),
+        precio_compra: Number(s.producto.precio_compra || 0),
         // Pasamos los atributos al frontend
         atributos: s.producto.atributos_triplay 
       }

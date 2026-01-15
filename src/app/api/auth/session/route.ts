@@ -1,27 +1,54 @@
-// src/app/api/auth/session/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthPayload } from '@/lib/auth'; // Reutilizamos nuestro helper
+import { getAuthPayload } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(req: Request) {
-  const authPayload = await getAuthPayload(req);
-  if (!authPayload) {
-    return NextResponse.json({ message: 'Token inválido o expirado' }, { status: 401 });
+  let userId: number | null = null;
+  
+  // 1. Intentamos obtener sesión interna
+  const internalAuth = await getAuthPayload(req);
+
+  if (internalAuth) {
+    userId = internalAuth.userId;
+  } else {
+    // 2. Intentamos validar con Supabase
+    const authHeader = req.headers.get('authorization');
+    const token = authHeader?.split(' ')[1];
+
+    if (token) {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      
+      if (!error && user) {
+        console.log("🟢 Supabase User ID detectado:", user.id); // <--- DEBUG
+
+        const dbUser = await prisma.usuario.findUnique({
+            where: { supabase_uid: user.id },
+            select: { id_usuario: true, nombre_usuario: true } // Seleccionamos nombre para verificar
+        });
+        
+        if (dbUser) {
+            console.log("✅ Usuario encontrado en DB:", dbUser.nombre_usuario); // <--- DEBUG
+            userId = dbUser.id_usuario;
+        } else {
+            console.log("🔴 ERROR: El UID de Supabase no coincide con ningún supabase_uid en la tabla Usuario"); // <--- DEBUG
+        }
+      } else {
+          console.log("🔴 Error validando token con Supabase:", error?.message);
+      }
+    }
+  }
+
+  if (!userId) {
+    return NextResponse.json({ message: 'No autenticado o usuario no vinculado' }, { status: 401 });
   }
 
   try {
-    const userId = authPayload.userId;
-
-    // Buscamos las asignaciones del usuario en la tabla intermedia
     const asignaciones = await prisma.usuarioAserradero.findMany({
       where: { id_usuario: userId },
-      include: {
-        // Incluimos los datos completos de cada aserradero asignado
-        aserradero: true,
-      },
+      include: { aserradero: true },
     });
     
-    // Devolvemos solo la lista de aserraderos
     const aserraderos = asignaciones.map(a => a.aserradero);
 
     if (aserraderos.length === 0) {

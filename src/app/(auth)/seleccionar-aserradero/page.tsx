@@ -1,49 +1,51 @@
 // src/app/(auth)/seleccionar-aserradero/page.tsx
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Frown, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-type Aserradero = {
+interface Aserradero {
   id_aserradero: number;
   nombre: string;
-};
+  ubicacion?: string;
+}
 
-// Array de colores para los iconos, para darles variedad.
-const iconColors = [
-    'text-emerald-400', 'text-sky-400', 'text-amber-400', 
-    'text-rose-400', 'text-violet-400', 'text-lime-400'
-];
-
-export default function SelectSawmillPage() {
+export default function SeleccionarAserraderoPage() {
+  const router = useRouter();
   const [aserraderos, setAserraderos] = useState<Aserradero[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     const fetchAserraderos = async () => {
-      // Obtenemos el token temporal guardado en el login.
-      const tempToken = localStorage.getItem('tempAuthToken');
-
-      if (!tempToken) {
-        router.push('/login'); // Si no hay token, no debería estar aquí.
-        return;
-      }
-
       try {
-        const response = await fetch('/api/auth/session', {
-          headers: { 'Authorization': `Bearer ${tempToken}` },
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || 'No se pudieron cargar los perfiles.');
+        // 1. Obtenemos la sesión actual de Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          router.push('/login');
+          return;
         }
 
+        // 2. Pedimos los aserraderos al backend enviando el token de Supabase
+        const res = await fetch('/api/auth/session', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}` // ¡Clave! Enviamos el token de Supabase
+          }
+        });
+
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+             throw new Error('No tienes aserraderos asignados o tu usuario no está vinculado.');
+          }
+          throw new Error('Error al cargar aserraderos');
+        }
+
+        const data = await res.json();
         setAserraderos(data.aserraderos);
+
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -54,73 +56,102 @@ export default function SelectSawmillPage() {
     fetchAserraderos();
   }, [router]);
 
-  const handleSelectAserradero = async (id_aserradero: number) => {
-    const tempToken = localStorage.getItem('tempAuthToken');
-
+  const handleSelect = async (id_aserradero: number) => {
+    setSelecting(id_aserradero);
     try {
-      const response = await fetch('/api/auth/select-sawmill', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tempToken}`,
-        },
-        body: JSON.stringify({ id_aserradero }),
-      });
-      
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'No se pudo seleccionar el perfil.');
-      }
-      
-      // 💡 Paso 2: Borramos el token temporal y guardamos el token FINAL y permanente.
-      localStorage.removeItem('tempAuthToken');
-      localStorage.setItem('sessionToken', data.sessionToken);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sesión expirada");
 
-      // ¡Listo! Redireccionamos a la aplicación principal.
-      router.push('/productos');
+      // 3. Hacemos el "Intercambio de Credenciales"
+      const res = await fetch('/api/auth/select-sawmill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_aserradero,
+          supabase_token: session.access_token // Enviamos token de Supabase para validar
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message);
+
+      // 4. ¡ÉXITO! Guardamos TU token interno (el que tiene roles y aserraderoId)
+      // Ajusta 'token' al nombre de clave que use tu app (ej: 'auth_token', 'token', etc.)
+      localStorage.setItem('sessionToken', data.sessionToken); 
+      
+      // Opcional: También podrías guardarlo en cookie si tu app lo prefiere
+      document.cookie = `token=${data.sessionToken}; path=/; max-age=28800; SameSite=Strict`;
+
+      // 5. Redirigir al Dashboard principal
+      router.push('/dashboard'); // O la ruta principal de tu app
+      router.refresh(); // Refresca para aplicar nuevos headers/cookies
 
     } catch (err: any) {
       alert(err.message);
+      setSelecting(null);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-800 text-white">
-        <Loader2 className="animate-spin" size={48} />
-        <p className="mt-4 text-lg">Cargando perfiles...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-4 w-48 bg-gray-200 rounded mb-4"></div>
+          <div className="h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-800 text-white p-8">
-      <h1 className="text-4xl md:text-5xl font-bold mb-2">¿Quién está trabajando?</h1>
-      <p className="text-gray-400 mb-12">Selecciona un perfil de aserradero para continuar.</p>
-
-      {error ? (
-         <div className="flex flex-col items-center text-center p-8 bg-gray-700 rounded-lg">
-            <Frown size={48} className="text-red-400 mb-4" />
-            <p className="text-xl font-semibold">Ocurrió un error</p>
-            <p className="text-gray-300">{error}</p>
-         </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-8">
-          {aserraderos.map((aserradero, index) => (
-            <div 
-              key={aserradero.id_aserradero} 
-              onClick={() => handleSelectAserradero(aserradero.id_aserradero)}
-              className="flex flex-col items-center gap-4 cursor-pointer group"
-            >
-              <div className="w-28 h-28 md:w-36 md:h-36 bg-gray-700 rounded-lg flex items-center justify-center 
-              group-hover:bg-gray-600 group-hover:scale-105 transform transition-all duration-200">
-                <Building2 size={64} className={iconColors[index % iconColors.length]} />
-              </div>
-              <p className="text-lg font-medium text-gray-300 group-hover:text-white transition-colors">{aserradero.nombre}</p>
-            </div>
-          ))}
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center">
+      <div className="max-w-3xl w-full space-y-8">
+        <div className="text-center">
+          <h2 className="text-3xl font-extrabold text-gray-900">Selecciona un Aserradero</h2>
+          <p className="mt-2 text-gray-600">Elige dónde trabajarás hoy</p>
         </div>
-      )}
+
+        {error ? (
+          <div className="bg-red-50 p-4 rounded-lg text-center border border-red-200">
+            <p className="text-red-700 font-medium">{error}</p>
+            <button onClick={() => router.push('/login')} className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+              Volver al inicio de sesión
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-8">
+            {aserraderos.map((aserradero) => (
+              <button
+                key={aserradero.id_aserradero}
+                onClick={() => handleSelect(aserradero.id_aserradero)}
+                disabled={selecting !== null}
+                className="group relative bg-white overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-indigo-500 text-left"
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center group-hover:bg-indigo-600 transition-colors">
+                      <svg className="h-6 w-6 text-indigo-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                    {selecting === aserradero.id_aserradero && (
+                      <span className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                    {aserradero.nombre}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500 truncate">
+                    {aserradero.ubicacion || 'Ubicación no registrada'}
+                  </p>
+                </div>
+                <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-600 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
