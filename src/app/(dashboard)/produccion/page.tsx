@@ -234,7 +234,10 @@ export default function ProduccionDashboardPage() {
 const KpiCard: React.FC<{ title: string; value: string | number; unit: string; icon: React.ReactNode; color?: string }> = ({ title, value, unit, icon, color = 'bg-gray-100' }) => (
   <div className="bg-white p-5 rounded-xl shadow-sm border flex items-center gap-5 transition-transform hover:scale-[1.01]">
     <div className={`flex-shrink-0 p-4 rounded-xl ${color}`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 28 })}
+      {/* CORRECCIÓN AQUÍ: Casteamos a 'any' para evitar error de TS con 'size' */}
+      {React.isValidElement(icon) 
+        ? React.cloneElement(icon as React.ReactElement<any>, { size: 28 }) 
+        : icon}
     </div>
     <div>
       <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
