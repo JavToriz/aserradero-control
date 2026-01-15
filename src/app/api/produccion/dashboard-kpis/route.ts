@@ -1,4 +1,3 @@
-// app/api/produccion/dashboard-kpis/route.ts
 // Endpoint NUEVO para calcular los indicadores clave del dashboard
 
 import { NextResponse, NextRequest } from 'next/server';
@@ -25,9 +24,9 @@ export async function GET(req: NextRequest) {
       }),
     ]);
     
-    // Si no se ha registrado medición, asumimos 0.
-    const m3Recibidos = remisionesSum._sum.m3_recibidos_aserradero || 0;
-    const m3Consumidos = ordenesSum._sum.total_m3_rollo_consumido || 0;
+    // CORRECCIÓN: Usamos Number() porque Prisma devuelve objetos Decimal
+    const m3Recibidos = Number(remisionesSum._sum.m3_recibidos_aserradero || 0);
+    const m3Consumidos = Number(ordenesSum._sum.total_m3_rollo_consumido || 0);
     
     // El stock físico actual es lo que entró (medido) menos lo que ya se aserró
     const m3EnPatio = m3Recibidos - m3Consumidos;
@@ -38,7 +37,8 @@ export async function GET(req: NextRequest) {
       where: { id_aserradero: aserraderoId },
     });
     
-    const totalPiezasTerminadas = stockTerminadoSum._sum.piezas_actuales || 0;
+    // Usamos Number() por seguridad (aunque sea Int)
+    const totalPiezasTerminadas = Number(stockTerminadoSum._sum.piezas_actuales || 0);
 
     // 3. Contar Lotes de Stock Activos
     const lotesActivos = await prisma.stockProductoTerminado.count({
