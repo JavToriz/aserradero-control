@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const newUser = await prisma.usuario.create({
       data: {
         nombre_usuario,
-        hash_contrasena: hashedPassword,
+        //hash_contrasena: hashedPassword,
         nombre_completo,
         // Conectar los roles si se proporcionan
         roles: roles && roles.length > 0 ? {
@@ -37,9 +37,9 @@ export async function POST(req: Request) {
     });
     
     // No devolver el hash de la contraseña en la respuesta
-    const { hash_contrasena: _, ...userWithoutPassword } = newUser;
+    //const { hash_contrasena: _, ...userWithoutPassword } = newUser;
 
-    return NextResponse.json({ user: userWithoutPassword }, { status: 201 });
+    return NextResponse.json({ message: 'usuario creado'}, { status: 201 });
   } catch (error) {
     console.error(error);
     // Manejar error de usuario duplicado
