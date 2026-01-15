@@ -81,8 +81,8 @@ export function PredioFormModal({
   };
 
   return (
+    // CORRECCIÓN: Se eliminó 'isOpen={isOpen}' porque ModalContainer no lo acepta
     <ModalContainer
-      isOpen={isOpen}
       onClose={onClose}
       title={modalTitle}
       icon={<MapPin size={24} className="text-green-600"/>}
