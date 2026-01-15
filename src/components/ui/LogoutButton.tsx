@@ -2,18 +2,23 @@
 
 import { useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
-import { supabase } from '@/lib/supabase'; // <--- 1. IMPORTAR CLIENTE SUPABASE
+import { supabase } from '@/lib/supabase'; // <--- 1. IMPORTAR CLIENTE SUPABASE (MANTENIDO)
 
-export default function LogoutButton() {
+// 2. AGREGAMOS LA INTERFAZ PARA CORREGIR EL ERROR DE TYPESCRIPT
+interface LogoutButtonProps {
+  isCollapsed?: boolean;
+}
+
+// 3. RECIBIMOS LA PROP isCollapsed
+export default function LogoutButton({ isCollapsed }: LogoutButtonProps) {
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
       // 2. Cerrar sesión en Supabase (Esto mata la cookie/token de Supabase)
-      // Esto asegurará que /seleccionar-aserradero ya no sea accesible
       await supabase.auth.signOut();
 
-      // 3. Opcional: Llamar a tu endpoint de limpieza si hace algo extra (cookies servidor)
+      // 3. Opcional: Llamar a tu endpoint de limpieza
       await fetch('/api/auth/logout', { method: 'POST' });
       
     } catch (error) {
@@ -21,11 +26,11 @@ export default function LogoutButton() {
     } finally {
       // 4. Elimina TUS tokens del almacenamiento local
       localStorage.removeItem('sessionToken');
-      // localStorage.removeItem('tempAuthToken'); // Si usas este, bórralo también
+      // localStorage.removeItem('tempAuthToken'); 
 
       // 5. Redirige al usuario a la página de login
       router.push('/login');
-      router.refresh(); // Refresca para asegurar que limpiar cualquier estado caché
+      router.refresh(); 
     }
   };
 
@@ -33,22 +38,33 @@ export default function LogoutButton() {
     <button
       onClick={handleLogout}
       title="Cerrar sesión"
-      className="
-        flex items-center justify-center gap-2
-        w-full sm:w-auto
-        px-4 py-2
-        text-sm sm:text-base font-semibold
+      className={`
+        flex items-center 
+        ${isCollapsed ? 'justify-center' : 'justify-start'} 
+        gap-3
+        w-full
+        px-2 py-3
+        text-sm font-medium
         text-red-600
-        rounded-lg
-        transition-all duration-200
+        rounded-md
+        transition-colors duration-200
         hover:bg-red-50 hover:text-red-700
         active:scale-95
-        focus:outline-none focus:ring-2 focus:ring-red-400
-      "
+        focus:outline-none
+      `}
     >
-      <LogOut size={18} className="shrink-0" />
-      <span className="hidden sm:inline">Cerrar sesión</span>
+      <LogOut size={20} className="shrink-0" />
+      
+      {/* Solo mostramos el texto si NO está colapsado */}
+      <span className={`
+        transition-all duration-300 overflow-hidden whitespace-nowrap
+        ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}
+      `}>
+        Cerrar sesión
+      </span>
+      
+      {/* Mantenemos tu lógica de tooltips o comportamiento móvil si fuera necesario, 
+          pero aquí adaptamos el estilo al Sidebar para que se vea bien */}
     </button>
-
   );
 }
