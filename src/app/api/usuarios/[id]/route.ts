@@ -35,35 +35,35 @@ export async function GET(req: Request, props: Props) {
   }
 }
 
-// PUT: Actualizar un usuario
+/* PUT: Actualizar un usuario
 export async function PUT(req: Request, props: Props) {
   try {
     const params = await props.params; // <--- Await necesario
 
     const body = await req.json();
-    const { hash_contrasena, ...dataToUpdate } = body;
+    //const { hash_contrasena, ...dataToUpdate } = body;
 
     // Si se incluye una nueva contraseña en la petición, la hasheamos
-    if (hash_contrasena) {
-      dataToUpdate.hash_contrasena = await bcrypt.hash(hash_contrasena, 10);
-    }
+    //if (hash_contrasena) {
+      //dataToUpdate.hash_contrasena = await bcrypt.hash(hash_contrasena, 10);
+   // }
 
-    const updatedUsuario = await prisma.usuario.update({
-      where: { id_usuario: parseInt(params.id, 10) },
-      data: dataToUpdate,
+    //const updatedUsuario = await prisma.usuario.update({
+      //where: { id_usuario: parseInt(params.id, 10) },
+     // data: dataToUpdate,
     });
     
     // Ocultar el hash de la contraseña en la respuesta
-    const { hash_contrasena: _, ...userToReturn } = updatedUsuario;
+  //  const { hash_contrasena: _, ...userToReturn } = updatedUsuario;
 
-    return NextResponse.json(userToReturn);
+    //return NextResponse.json(userToReturn);
   } catch (error: any) {
     if (error.code === 'P2025') { // Recurso no encontrado
         return NextResponse.json({ message: "Usuario no encontrado" }, { status: 404 });
     }
     return NextResponse.json({ message: 'Error al actualizar usuario' }, { status: 500 });
   }
-}
+}*/
 
 // DELETE: Eliminar un usuario
 export async function DELETE(req: Request, props: Props) {
