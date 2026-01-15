@@ -85,10 +85,10 @@ export function VehiculoFormModal({
 
   return (
     <ModalContainer
-      isOpen={isOpen}
+      //isOpen={isOpen}
       onClose={onClose}
       title={modalTitle}
-      icon={<Truck size={24} className="text-orange-600"/>}
+      //icon={<Truck size={24} className="text-orange-600"/>}
     >
       <form onSubmit={handleSubmit} className="space-y-4 p-4">
           <div>
