@@ -59,12 +59,14 @@ export default function NuevoProductoPage() {
               <ProductForm 
                 productType="MADERA_ASERRADA" 
                 onSave={handleSaveSuccess} 
+                onCancel={() => router.push('/productos')}
               />
             </Tabs.Content>
             <Tabs.Content value="TRIPLAY_AGLOMERADO">
               <ProductForm 
                 productType="TRIPLAY_AGLOMERADO" 
                 onSave={handleSaveSuccess} 
+                onCancel={() => router.push('/productos')}
               />
             </Tabs.Content>
           </Tabs.Root>
