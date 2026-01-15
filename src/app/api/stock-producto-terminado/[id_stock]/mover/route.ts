@@ -6,15 +6,19 @@ import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
 
-interface Params {
-  params: { id_stock: string };
+// CAMBIO NECESARIO: Next.js 15 requiere que params sea una Promesa
+interface Props {
+  params: Promise<{ id_stock: string }>;
 }
 
 /**
  * PUT: Mover una cantidad específica de un lote de stock a una nueva ubicación.
  * Body esperado: { ubicacion_destino: string, piezas_a_mover: number }
  */
-export async function PUT(req: NextRequest, { params }: Params) {
+export async function PUT(req: NextRequest, props: Props) {
+  // CAMBIO NECESARIO: Esperar los parámetros antes de usarlos
+  const params = await props.params;
+  
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId || !authPayload.userId) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
@@ -127,7 +131,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         data: {
           id_aserradero: authPayload.aserraderoId,
           id_stock_afectado: idLoteDestinoAfectado, // Registramos contra el lote de destino
-          id_responsable_usuario: authPayload.userId,
+          id_responsable_usuario: authPayload.userId!, // Aseguramos no-null
           fecha_movimiento: new Date().toISOString(),
           piezas_movidas: piezas_a_mover,
           ubicacion_origen: loteOrigen.ubicacion,
