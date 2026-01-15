@@ -56,8 +56,10 @@ export function useAuthenticatedFetch<T>(url: string): UseAuthFetchResult<T> {
       const jsonData = await res.json();
       setData(jsonData);
 
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) { // CORRECCIÓN: Quitamos ': any' para satisfacer al linter
+      // Validamos si es un Error real antes de leer el mensaje
+      const message = err instanceof Error ? err.message : 'Ocurrió un error desconocido';
+      setError(message);
     } finally {
       setLoading(false);
     }
