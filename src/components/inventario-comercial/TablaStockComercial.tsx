@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 // --- NUEVOS IMPORTS NECESARIOS ---
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@/components/ui/my-switch";
 import { Label } from "@/components/ui/label";
 import { Loader2, RefreshCw, Calculator } from "lucide-react";
 // ---------------------------------
