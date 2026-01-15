@@ -1,4 +1,3 @@
-// src/app/(dashboard)/productos/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -9,17 +8,14 @@ import { ProductTable } from '@/components/productos/ProductTable';
 import { ProductForm } from '@/components/productos/ProductForm';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { ModalContainer } from '@/components/ui/ModalContainer'; 
-//import { StockAdjustmentModal } from '@/components/productos/StockAdjustmentModal';
-//import { AdjustmentHistoryModal } from '@/components/productos/AdjustmentHistoryModal';
 
-
-// Definimos un tipo más completo
+// 1. CORRECCIÓN DE TIPO: Renombramos id_producto a id_producto_catalogo para coincidir con ProductTable
 type Producto = {
-  id_producto: number;
+  id_producto_catalogo: number; // <--- CAMBIO CLAVE AQUÍ
   descripcion: string;
   tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
   //stock: number;
-  [key: string]: any; // Para el resto de propiedades
+  [key: string]: any; 
 };
 
 export default function ProductsPage() {
@@ -30,24 +26,31 @@ export default function ProductsPage() {
   // State for modals
   const [productToEdit, setProductToEdit] = useState<Producto | null>(null);
   const [productToDelete, setProductToDelete] = useState<Producto | null>(null);
-  //const [productToAdjust, setProductToAdjust] = useState<Producto | null>(null);
-  //const [productForHistory, setProductForHistory] = useState<Producto | null>(null);
 
-  
-  // State for filters will go here
-
-  // Usamos useCallback para evitar que la función se re-cree en cada render
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     const token = localStorage.getItem('sessionToken');
-    // TODO: Añadir filtros a la URL
-    const response = await fetch(`/api/productos?tipo_categoria=${activeTab}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    const data = await response.json();
-    setProducts(data);
-    setLoading(false);
-  }, [activeTab]); // Depende del tab activo
+    try {
+      const response = await fetch(`/api/productos?tipo_categoria=${activeTab}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await response.json();
+      
+      // 2. CORRECCIÓN DE DATOS: Aseguramos que el objeto tenga el ID correcto para la tabla
+      // Si la API devuelve 'id_producto', lo asignamos a 'id_producto_catalogo'
+      const mappedData = Array.isArray(data) ? data.map((item: any) => ({
+        ...item,
+        id_producto_catalogo: item.id_producto_catalogo || item.id_producto
+      })) : [];
+
+      setProducts(mappedData);
+    } catch (error) {
+      console.error("Error cargando productos", error);
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     fetchProducts();
@@ -58,6 +61,7 @@ export default function ProductsPage() {
     
     const token = localStorage.getItem('sessionToken');
     try {
+      // Ahora TypeScript no se quejará porque id_producto_catalogo existe en el tipo
       const response = await fetch(`/api/productos/${productToDelete.id_producto_catalogo}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -67,30 +71,23 @@ export default function ProductsPage() {
         throw new Error('Error al eliminar el producto');
       }
       
-      alert('Producto eliminado con éxito.');
-      setProductToDelete(null); // Cierra el modal
-      fetchProducts(); // Recarga los datos
+      // alert('Producto eliminado con éxito.'); // Opcional: quitar alert para mejor UX
+      setProductToDelete(null); 
+      fetchProducts(); 
     } catch (error) {
         console.error(error);
         alert('No se pudo eliminar el producto.');
     }
   };
 
-  // Esta función se llama tanto al guardar como al cancelar desde el formulario.
   const handleFormFinish = () => {
-      setProductToEdit(null); // Cierra el modal de edición
-      fetchProducts(); // Recarga los datos
+      setProductToEdit(null); 
+      fetchProducts(); 
   };
 
   const handleFormCancel = () => {
-    setProductToEdit(null); // Simplemente cierra el modal
+    setProductToEdit(null); 
   };
-
-  /* NUEVO HANDLER para cuando el ajuste de stock es exitoso
-  const handleAdjustmentSuccess = () => {
-    setProductToAdjust(null); // Cierra el modal de ajuste
-    fetchProducts(); // Recarga la lista de productos para ver el stock actualizado
-  }; */
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
@@ -107,8 +104,6 @@ export default function ProductsPage() {
         </Link>
       </header>
       
-      {/* Aquí iría el componente de filtros */}
-
       <Tabs.Root value={activeTab} onValueChange={(value) => setActiveTab(value)}>
         <Tabs.List className="flex border-b">
           <Tabs.Trigger value="MADERA_ASERRADA" className="px-4 py-2 text-gray-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 focus:outline-none">
@@ -137,12 +132,11 @@ export default function ProductsPage() {
       {/* Modal de Edición */}
       {productToEdit && (
         <ModalContainer title="Editar Producto" onClose={() => setProductToEdit(null)}>
-            
             <ProductForm 
                 productType={productToEdit.tipo_categoria}
                 initialData={productToEdit}
-                onSave={handleFormFinish} // Se ejecuta al guardar exitosamente
-                onCancel={handleFormCancel} // Se ejecuta al presionar cancelar
+                onSave={handleFormFinish} 
+                onCancel={handleFormCancel} 
             />
         </ModalContainer>
       )}
@@ -155,8 +149,6 @@ export default function ProductsPage() {
           title="Confirmar Eliminación"
           message={`¿Estás seguro de que deseas eliminar el producto "${productToDelete?.descripcion}"? Esta acción no se puede deshacer.`}
       />
-
-      
     </div>
   );
 }
