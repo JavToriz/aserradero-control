@@ -3,15 +3,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-interface Params {
-  params: { id: string };
+// Cambio necesario: params es ahora una Promesa
+interface Props {
+  params: Promise<{ id: string }>;
 }
 
 // GET: Obtener un rol específico
-export async function GET(req: Request, { params }: Params) {
+export async function GET(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- Await necesario
+    const id = parseInt(params.id, 10);
+
     const rol = await prisma.rol.findUnique({
-      where: { id_rol: parseInt(params.id, 10) },
+      where: { id_rol: id },
     });
     if (!rol) {
       return NextResponse.json({ message: 'Rol no encontrado' }, { status: 404 });
@@ -23,11 +27,14 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 // PUT: Actualizar un rol
-export async function PUT(req: Request, { params }: Params) {
+export async function PUT(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- Await necesario
+    const id = parseInt(params.id, 10);
+
     const { nombre_rol } = await req.json();
     const updatedRol = await prisma.rol.update({
-      where: { id_rol: parseInt(params.id, 10) },
+      where: { id_rol: id },
       data: { nombre_rol },
     });
     return NextResponse.json(updatedRol);
@@ -40,10 +47,13 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 // DELETE: Eliminar un rol
-export async function DELETE(req: Request, { params }: Params) {
+export async function DELETE(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- Await necesario
+    const id = parseInt(params.id, 10);
+
     await prisma.rol.delete({
-      where: { id_rol: parseInt(params.id, 10) },
+      where: { id_rol: id },
     });
     return new NextResponse(null, { status: 204 });
   } catch (error: any) {

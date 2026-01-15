@@ -4,13 +4,16 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-interface Params {
-  params: { id: string };
+// Cambio necesario: params es ahora una Promesa
+interface Props {
+  params: Promise<{ id: string }>;
 }
 
 // GET: Obtener un usuario específico
-export async function GET(req: Request, { params }: Params) {
+export async function GET(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- Await necesario
+    
     const usuario = await prisma.usuario.findUnique({
       where: { id_usuario: parseInt(params.id, 10) },
       select: { // Nuevamente, excluimos el hash de la contraseña
@@ -33,8 +36,10 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 // PUT: Actualizar un usuario
-export async function PUT(req: Request, { params }: Params) {
+export async function PUT(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- Await necesario
+
     const body = await req.json();
     const { hash_contrasena, ...dataToUpdate } = body;
 
@@ -61,8 +66,10 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 // DELETE: Eliminar un usuario
-export async function DELETE(req: Request, { params }: Params) {
+export async function DELETE(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- Await necesario
+
     await prisma.usuario.delete({
       where: { id_usuario: parseInt(params.id, 10) },
     });
