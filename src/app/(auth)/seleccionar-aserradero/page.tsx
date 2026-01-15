@@ -98,7 +98,7 @@ export default function SeleccionarAserraderoPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-pulse flex flex-col items-center">
           <div className="h-4 w-48 bg-gray-200 rounded mb-4"></div>
-          <div className="h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="h-10 w-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
       </div>
     );
@@ -115,7 +115,7 @@ export default function SeleccionarAserraderoPage() {
         {error ? (
           <div className="bg-red-50 p-4 rounded-lg text-center border border-red-200">
             <p className="text-red-700 font-medium">{error}</p>
-            <button onClick={() => router.push('/login')} className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+            <button onClick={() => router.push('/login')} className="mt-2 text-green-600 hover:text-green-800 text-sm font-medium">
               Volver al inicio de sesión
             </button>
           </div>
@@ -126,27 +126,27 @@ export default function SeleccionarAserraderoPage() {
                 key={aserradero.id_aserradero}
                 onClick={() => handleSelect(aserradero.id_aserradero)}
                 disabled={selecting !== null}
-                className="group relative bg-white overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-indigo-500 text-left"
+                className="group relative bg-white overflow-hidden rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 hover:border-green-500 text-left"
               >
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center group-hover:bg-indigo-600 transition-colors">
-                      <svg className="h-6 w-6 text-indigo-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center group-hover:bg-green-600 transition-colors">
+                      <svg className="h-6 w-6 text-green-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                     </div>
                     {selecting === aserradero.id_aserradero && (
-                      <span className="h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                      <span className="h-5 w-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></span>
                     )}
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                  <h3 className="text-lg font-bold text-gray-900 group-hover:text-green-600 transition-colors">
                     {aserradero.nombre}
                   </h3>
                   <p className="mt-1 text-sm text-gray-500 truncate">
                     {aserradero.ubicacion || 'Ubicación no registrada'}
                   </p>
                 </div>
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-indigo-600 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                <div className="absolute bottom-0 left-0 w-full h-1 bg-green-600 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
               </button>
             ))}
           </div>

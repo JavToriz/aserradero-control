@@ -1,103 +1,99 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Trees, ArrowRight, BarChart3, Truck, Box } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="min-h-screen bg-black text-white selection:bg-green-500 selection:text-black flex flex-col">
+      
+      {/* Fondo con efecto de gradiente sutil */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-900/20 via-black to-black z-0 pointer-events-none" />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Navbar simple */}
+      <nav className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+        <div className="flex items-center gap-2 font-bold text-xl tracking-tighter">
+          <Trees className="text-green-500" />
+          <span>ASERRADERO<span className="text-green-500">CONTROL</span></span>
         </div>
+        <Link 
+          href="/login" 
+          className="text-sm font-medium text-zinc-400 hover:text-green-400 transition-colors"
+        >
+          Acceso Administrativo
+        </Link>
+      </nav>
+
+      {/* Hero Section (Centro) */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8">
+        
+        {/* Badge superior */}
+        <div className="mb-8 inline-flex items-center rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-sm text-green-400 backdrop-blur-xl">
+          <span className="flex h-2 w-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+          Sistema de Gestión de Aserradero v1.0
+        </div>
+
+        {/* Título Principal */}
+        <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight mb-6">
+          Tu producción, <br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-green-700">
+            bajo control total.
+          </span>
+        </h1>
+
+        <p className="max-w-2xl text-lg sm:text-xl text-zinc-400 mb-10 leading-relaxed">
+          Optimiza cada etapa de tu aserradero. Desde la recepción de madera en rollo hasta la venta del producto terminado. 
+          Inventarios, ventas y reportes en tiempo real.
+        </p>
+
+        {/* BOTÓN GRANDE DE INICIO DE SESIÓN */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <Link
+            href="/login"
+            className="group relative inline-flex h-14 items-center justify-center overflow-hidden rounded-full bg-green-600 px-8 font-medium text-white shadow-[0_0_20px_rgba(22,163,74,0.5)] transition-all duration-300 hover:bg-green-500 hover:scale-105 hover:shadow-[0_0_40px_rgba(22,163,74,0.7)]"
+          >
+            <span className="mr-2 text-lg">Iniciar Sesión</span>
+            <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
+            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity duration-500 group-hover:animate-shine" />
+          </Link>
+        </div>
+
+        {/* Grid de Características (Visual decorativo) */}
+        <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full text-left">
+          <FeatureCard 
+            icon={<Trees size={24} />} 
+            title="Materia Prima" 
+            desc="Control detallado de entradas de madera en rollo y proveedores." 
+          />
+          <FeatureCard 
+            icon={<Box size={24} />} 
+            title="Inventario Real" 
+            desc="Monitoreo de stock de madera aserrada y triplay al instante." 
+          />
+          <FeatureCard 
+            icon={<Truck size={24} />} 
+            title="Logística y Ventas" 
+            desc="Gestión fluida de remisiones, reembarques y ventas." 
+          />
+        </div>
+
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      {/* Footer simple */}
+      <footer className="relative z-10 py-8 text-center text-zinc-600 text-sm">
+        <p>&copy; {new Date().getFullYear()} Aserradero Control. Todos los derechos reservados.</p>
       </footer>
     </div>
   );
+}
+
+// Componente pequeño para las tarjetas
+function FeatureCard({ icon, title, desc }: { icon: any, title: string, desc: string }) {
+  return (
+    <div className="group p-6 rounded-2xl bg-zinc-900/50 border border-zinc-800 hover:border-green-500/50 transition-colors backdrop-blur-sm">
+      <div className="mb-4 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-green-900/20 text-green-400 group-hover:text-green-300 transition-colors">
+        {icon}
+      </div>
+      <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+      <p className="text-zinc-400 text-sm leading-relaxed">{desc}</p>
+    </div>
+  )
 }
