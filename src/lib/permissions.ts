@@ -1,6 +1,6 @@
 // src/lib/permissions.ts
 // Biblioteca para manejo de permisos y roles de usuario
-import { NextResponse } from 'next/server';
+//import { NextResponse } from 'next/server';
 
 // Definición centralizada de permisos
 export const PERMISSIONS = {
