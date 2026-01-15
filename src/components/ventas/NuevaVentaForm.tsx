@@ -23,7 +23,7 @@ type ProductoCatalogo = {
   precio_mayoreo?: number; 
   sku?: string; 
   tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
-  atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number } | null;
+  atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number; genero?: string; } | null;
   atributos_triplay?: { espesor_mm: number; ancho_ft: number; largo_ft: number } | null;
   [key: string]: any 
 };
