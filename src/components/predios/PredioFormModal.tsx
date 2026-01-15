@@ -69,7 +69,6 @@ export function PredioFormModal({
         }
 
         // ÉXITO: Inmediato.
-        // Esto envía la data al padre, el cual seleccionará el item y cerrará este modal automáticamente.
         onSuccess(data);
 
     } catch (err: any) { 
@@ -81,11 +80,10 @@ export function PredioFormModal({
   };
 
   return (
-    // CORRECCIÓN: Se eliminó 'isOpen={isOpen}' porque ModalContainer no lo acepta
+    // CORRECCIÓN: Eliminamos la propiedad 'icon' porque ModalContainer no la acepta
     <ModalContainer
       onClose={onClose}
       title={modalTitle}
-      icon={<MapPin size={24} className="text-green-600"/>}
     >
       <form onSubmit={handleSubmit} className="space-y-4 p-4">
           <div>
