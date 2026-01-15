@@ -1,4 +1,3 @@
-// app/api/reportes/libro-semarnat/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
@@ -26,8 +25,6 @@ export async function GET(req: NextRequest) {
     const aserraderoId = authPayload.aserraderoId;
 
     // 1. Obtener ENTRADAS (Remisiones)
-    // Usamos 'm3_recibidos_aserradero' si existe, si no 'volumen_total_m3'
-    // Nota: El filtro de género se aplica si se envió
     const whereRemision: any = {
       id_aserradero: aserraderoId,
       fecha_emision: { gte: start, lte: end },
@@ -39,22 +36,17 @@ export async function GET(req: NextRequest) {
     const remisiones = await prisma.remision.findMany({
       where: whereRemision,
       include: {
-        predio_origen: { select: { nombre_predio: true, clave_rfn: true } }, // Datos del ejido
+        predio_origen: { select: { nombre_predio: true, clave_rfn: true } },
         titular: { select: { nombre_completo: true } }
       },
       orderBy: { fecha_emision: 'asc' }
     });
 
-    // 2. Obtener SALIDAS (Reembarques y Ventas)
-    // Aquí asumimos que Reembarques son salidas de materia prima o producto
-    // Y Ventas son salidas de producto terminado.
-    
-    // Buscar Reembarques
+    // 2. Obtener SALIDAS (Reembarques)
     const reembarques = await prisma.reembarque.findMany({
       where: {
         id_aserradero: aserraderoId,
         fecha_emision: { gte: start, lte: end },
-        // genero_madera: ... (si aplicara)
       },
       include: {
         destinatario: { select: { nombre_completo: true } }
@@ -62,17 +54,12 @@ export async function GET(req: NextRequest) {
       orderBy: { fecha_emision: 'asc' }
     });
 
-    // Buscar Ventas (Notas de Venta) - Opcional si solo usas Reembarques para SEMARNAT
-    // Para este ejemplo, nos centraremos en Reembarques como salidas oficiales reportables
-    // Si necesitas Ventas, se pueden agregar aquí.
-
     // 3. Procesar Datos para la Tabla Unificada
     const filas = [];
 
     // Procesar Entradas
     let totalVolumenEntrada = 0;
     for (const r of remisiones) {
-      // Prioridad: Medida real > Medida documentada
       const cantidad = Number(r.m3_recibidos_aserradero) > 0 
         ? Number(r.m3_recibidos_aserradero) 
         : Number(r.volumen_total_m3);
@@ -85,7 +72,7 @@ export async function GET(req: NextRequest) {
         documento: 'REMISION',
         folio: r.folio_progresivo,
         procedencia_destino: r.predio_origen?.nombre_predio || 'Desconocido',
-        codigo_identificacion: r.predio_origen?.clave_rfn || 'S/N', // Clave RFN del ejido
+        codigo_identificacion: r.predio_origen?.clave_rfn || 'S/N',
         entrada: cantidad,
         salida: 0
       });
@@ -94,7 +81,7 @@ export async function GET(req: NextRequest) {
     // Procesar Salidas
     let totalVolumenSalida = 0;
     for (const s of reembarques) {
-      const cantidad = Number(s.volumen_total_m3) || 0; // O cantidad amparada
+      const cantidad = Number(s.volumen_total_m3) || 0; 
       totalVolumenSalida += cantidad;
 
       filas.push({
@@ -103,27 +90,27 @@ export async function GET(req: NextRequest) {
         documento: 'REEMBARQUE',
         folio: s.folio_progresivo,
         procedencia_destino: s.destinatario?.nombre_completo || 'Público General',
-        codigo_identificacion: '-', // Salidas no siempre llevan RFN de destino
+        codigo_identificacion: '-', 
         entrada: 0,
         salida: cantidad
       });
     }
 
-    // Ordenar cronológicamente
-    filas.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+    // CORRECCIÓN AQUÍ: Ordenar cronológicamente manejando posibles nulos
+    filas.sort((a, b) => {
+        const dateA = a.fecha ? new Date(a.fecha).getTime() : 0;
+        const dateB = b.fecha ? new Date(b.fecha).getTime() : 0;
+        return dateA - dateB;
+    });
 
-    // 4. Cálculos Finales (La Fórmula)
-    // EXISTENCIA INICIAL: Para hacerlo simple en este MVP, el usuario la ingresará manualmente en el front,
-    // o podríamos calcularla si tuviéramos un "Corte de Inventario" previo.
-    // Aquí devolvemos los totales calculados del periodo.
-    
+    // 4. Cálculos Finales
     const volumenTransformado = totalVolumenEntrada * 0.50; // Coeficiente 50%
 
     return NextResponse.json({
       filas,
       totales: {
         entradaBruta: totalVolumenEntrada,
-        entradaTransformada: volumenTransformado, // Ya con el 50%
+        entradaTransformada: volumenTransformado,
         salidaTotal: totalVolumenSalida
       }
     });
