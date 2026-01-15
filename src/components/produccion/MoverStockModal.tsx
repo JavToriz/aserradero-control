@@ -109,7 +109,7 @@ export function MoverStockModal({ isOpen, onClose, onMoveSuccess, item, mode }: 
   if (!isOpen) return null;
 
   return (
-    <ModalContainer isOpen={isOpen} onClose={onClose} title="Mover Lote de Stock">
+    <ModalContainer onClose={onClose} title="Mover Lote de Stock">
       <form onSubmit={handleSubmit} className="p-4 space-y-6">
         
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
