@@ -5,7 +5,7 @@ interface AuthPayload {
   userId: number;
   aserraderoId: number;
   roles: string[];
-  [key: string]: any;
+  [key: string]: unknown; // Cambiado 'any' por 'unknown' para silenciar el linter de forma segura
 }
 
 export async function getAuthPayload(req: NextRequest | Request): Promise<AuthPayload | null> {
@@ -17,13 +17,12 @@ export async function getAuthPayload(req: NextRequest | Request): Promise<AuthPa
     try {
         const secret = new TextEncoder().encode(process.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
-        return payload as AuthPayload;
-    } catch (e: any) {
-        // SOLUCIÓN:
-        // Si el error es de firma (JWSSignatureVerificationFailed), significa que probablemente 
-        // es un token de Supabase y no uno nuestro. No es un error crítico del sistema.
-        // Solo lo logueamos si es otro tipo de error.
-        if (e.code !== 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
+        return payload as unknown as AuthPayload; // Doble cast necesario a veces con librerías externas
+    } catch (e) {
+        // SOLUCIÓN: Validamos que 'e' sea un objeto con la propiedad code
+        const errorCode = (e as { code?: string })?.code;
+
+        if (errorCode !== 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
             console.error("JWT Verification Error:", e);
         }
         return null;

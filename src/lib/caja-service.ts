@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+// Necesitamos importar el tipo para la transacción si queremos evitar 'any'
+import { Prisma } from "@prisma/client"; 
 
 export const CajaService = {
   // ---------------------------------------------------------------------------
@@ -27,7 +29,7 @@ export const CajaService = {
     descripcion: string;
     id_nota_venta?: number;
     id_recibo_gasto?: number;
-  }, tx?: any) { // Soporte opcional para transacciones
+  }, tx?: Prisma.TransactionClient) { // Cambiado 'any' por el tipo correcto de Prisma
     
     // Si pasamos una transacción (tx), la usamos; si no, usamos 'this' para buscar turno
     // Nota: Para buscar turno dentro de una transacción se requeriría pasar tx a getTurnoActivo también,
@@ -36,11 +38,11 @@ export const CajaService = {
     
     // Si no viene tx, buscamos el turno primero (si viene tx, asumimos que el caller ya tiene el id_turno o lo maneja diferente)
     // En tu implementación actual, las cancelaciones insertan directo en la DB, así que esto es para compatibilidad futura.
-    let id_turno: number;
-
+    
+    // CORRECCIÓN: Usamos const porque no se reasigna abajo
     const turno = await this.getTurnoActivo(data.id_aserradero);
     if (!turno) throw new Error("Caja cerrada.");
-    id_turno = turno.id_turno;
+    const id_turno = turno.id_turno;
 
     return await prismaClient.movimientoCaja.create({
       data: {
@@ -82,13 +84,12 @@ export const CajaService = {
     const efectivoEnCaja = turno.movimientos.reduce((acc, m) => {
       const monto = Number(m.monto);
       
-      // --- CORRECCIÓN AQUÍ ---
       // Definimos explícitamente qué movimientos SUMAN dinero a la caja
       const tiposQueSuman = [
         'APERTURA', 
         'INGRESO_VENTA', 
         'CORRECCION_INGRESO', 
-        'INGRESO_CANCELACION' // <--- IMPORTANTE: Cuando borras gasto, el dinero regresa (suma)
+        'INGRESO_CANCELACION' 
       ];
 
       if (tiposQueSuman.includes(m.tipo_movimiento)) {
@@ -115,7 +116,8 @@ export const CajaService = {
     const gastosTotales = turno.recibos_gasto.reduce((acc, g) => acc + Number(g.monto), 0);
 
     // 4. Desglose detallado
-    const desgloseVentas = turno.notas_venta.reduce((acc: any, v) => {
+    // CORRECCIÓN: Definimos el tipo del acumulador para evitar 'any'
+    const desgloseVentas = turno.notas_venta.reduce((acc: Record<string, number>, v) => {
       const metodo = v.tipo_pago || 'OTRO';
       acc[metodo] = (acc[metodo] || 0) + Number(v.total_venta);
       return acc;
