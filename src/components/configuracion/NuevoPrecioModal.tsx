@@ -1,4 +1,3 @@
-// components/configuracion/NuevoPrecioModal.tsx
 'use client';
 
 import { useState } from 'react';
@@ -79,12 +78,37 @@ export function NuevoPrecioModal({ isOpen, onClose, onSaveSuccess }: NuevoPrecio
     setCalidad('Primera');
   };
 
+  // Si no está abierto, no renderizamos nada
   if (!isOpen && !showSuccess && !showError.open) return null;
+
+  // Si mostramos success o error, el modal principal se oculta visualmente (retorno null parcial)
+  // o se mantiene debajo. Aquí decido ocultarlo si hay otro modal encima para limpieza visual.
+  if (showSuccess || showError.open) {
+      return (
+        <>
+            <SuccessActionModal 
+                isOpen={showSuccess}
+                onClose={handleSuccessClose}
+                title="¡Precio Creado!"
+                message={`Se ha registrado correctamente el precio base para ${especie} - ${calidad}.`}
+                buttonText="Aceptar"
+            />
+            <ErrorActionModal 
+                isOpen={showError.open}
+                onClose={() => setShowError({ ...showError, open: false })}
+                title="Error al Guardar, intenta de nuevo"
+                message={showError.message}
+                buttonText="Entendido"
+            />
+        </>
+      );
+  }
 
   return (
     <>
       {/* Modal Principal (Formulario) */}
-      <ModalContainer title="Agregar Nuevo Precio Base" isOpen={isOpen} onClose={onClose}>
+      {/* CORRECCIÓN: Eliminamos la prop 'isOpen' ya que el componente padre controla el renderizado con el if inicial */}
+      <ModalContainer title="Agregar Nuevo Precio Base" onClose={onClose}>
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           
           <div>
@@ -167,24 +191,6 @@ export function NuevoPrecioModal({ isOpen, onClose, onSaveSuccess }: NuevoPrecio
 
         </form>
       </ModalContainer>
-
-      {/* --- MODALES DE FEEDBACK ESTANDARIZADOS --- */}
-      
-      <SuccessActionModal 
-        isOpen={showSuccess}
-        onClose={handleSuccessClose}
-        title="¡Precio Creado!"
-        message={`Se ha registrado correctamente el precio base para ${especie} - ${calidad}.`}
-        buttonText="Aceptar"
-      />
-
-      <ErrorActionModal 
-        isOpen={showError.open}
-        onClose={() => setShowError({ ...showError, open: false })}
-        title="Error al Guardar, intenta de nuevo"
-        message={showError.message}
-        buttonText="Entendido"
-      />
     </>
   );
 }
