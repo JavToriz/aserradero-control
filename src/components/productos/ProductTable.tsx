@@ -3,8 +3,11 @@
 import { Pencil, Trash2, Boxes, History } from 'lucide-react';
 
 // Define el tipo para los productos y las funciones de callback
-type Product = {
+// CAMBIO NECESARIO: Agregamos descripcion y tipo_categoria explícitamente
+export type Product = {
   id_producto_catalogo: number;
+  descripcion: string; // <--- Agregado para cumplir con el padre
+  tipo_categoria: any; // <--- Agregado (usamos any para ser flexible con strings o enums)
   //stock: number;
   [key: string]: any; // Permite otras propiedades
 };
@@ -30,18 +33,6 @@ const formatMedidas = (product: any, type: 'madera' | 'triplay') => {
     }
     return 'N/A';
 };
-/* Nueva función para obtener el estilo del stock
-const getStockStyle = (stock: number) => {
-  const stockValue = Number(stock);
-  if (stockValue < 20) {
-    return 'text-red-600 font-bold';
-  }
-  if (stockValue >= 20 && stockValue <= 60) {
-    return 'text-yellow-600 font-bold';
-  }
-  return 'text-green-600 font-bold';
-};
-*/
 
 // =========== Funciones para obtener margen de ganancia ===========
 
