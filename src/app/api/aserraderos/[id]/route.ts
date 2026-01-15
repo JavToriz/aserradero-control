@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-//const prisma = new PrismaClient();
-
-interface Params {
-  params: { id: string };
+// En Next.js 15, params es una Promesa que debemos esperar
+interface Props {
+  params: Promise<{ id: string }>;
 }
 
 // Obtener un aserradero por ID
-export async function GET(req: Request, { params }: Params) {
+export async function GET(req: Request, props: Props) {
   try {
+    // 1. AWAIT obligatorio en Next.js 15
+    const params = await props.params;
+    const id = parseInt(params.id, 10);
+
     const aserradero = await prisma.aserradero.findUnique({
-      where: { id_aserradero: parseInt(params.id, 10) },
+      where: { id_aserradero: id },
     });
     if (!aserradero) {
       return NextResponse.json({ message: 'Aserradero no encontrado' }, { status: 404 });
@@ -23,11 +26,14 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 // Actualizar un aserradero por ID
-export async function PUT(req: Request, { params }: Params) {
+export async function PUT(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- AWAIT
+    const id = parseInt(params.id, 10);
+
     const data = await req.json();
     const updatedAserradero = await prisma.aserradero.update({
-      where: { id_aserradero: parseInt(params.id, 10) },
+      where: { id_aserradero: id },
       data,
     });
     return NextResponse.json(updatedAserradero);
@@ -37,10 +43,13 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 // Eliminar un aserradero por ID
-export async function DELETE(req: Request, { params }: Params) {
+export async function DELETE(req: Request, props: Props) {
   try {
+    const params = await props.params; // <--- AWAIT
+    const id = parseInt(params.id, 10);
+
     await prisma.aserradero.delete({
-      where: { id_aserradero: parseInt(params.id, 10) },
+      where: { id_aserradero: id },
     });
     return new NextResponse(null, { status: 204 }); // Sin contenido
   } catch (error) {
