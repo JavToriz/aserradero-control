@@ -18,9 +18,35 @@ interface NuevaRemisionFormProps {
 
 const STORAGE_KEY = 'remision_draft';
 
+// Definimos explícitamente el tipo del estado para evitar confusiones de TypeScript
+interface FormDataState {
+  folio_progresivo: string;
+  folio_autorizado: string;
+  fecha_emision: string;
+  id_titular: number | null;
+  id_predio_origen: number | null;
+  id_remitente: number | null;
+  id_destinatario: number | null;
+  id_vehiculo: number | null;
+  id_chofer: number | null;
+  titular_nombre: string;
+  predio_nombre: string;
+  remitente_nombre: string;
+  destinatario_nombre: string;
+  vehiculo_matricula: string;
+  chofer_nombre: string;
+  descripcion_producto_remision: string;
+  genero_madera: string;
+  cantidad_amparada: number;
+  saldo_disponible_anterior: number;
+  volumen_total_m3: number;
+}
+
 export function NuevaRemisionForm({ onSaveSuccess }: NuevaRemisionFormProps) {
   const router = useRouter();
-  const [formData, setFormData] = useState({
+  
+  // Usamos el tipo FormDataState
+  const [formData, setFormData] = useState<FormDataState>({
     folio_progresivo: '',
     folio_autorizado: '',
     fecha_emision: new Date().toISOString().split('T')[0],
@@ -93,6 +119,7 @@ export function NuevaRemisionForm({ onSaveSuccess }: NuevaRemisionFormProps) {
   const closeModal = (tipo: keyof typeof modalState) => setModalState(prev => ({ ...prev, [tipo]: false }));
 
   const handlePersonaSaveSuccess = (p: Persona, tipo: 'titular' | 'remitente' | 'destinatario' | 'chofer') => {
+    // CORRECCIÓN: TypeScript ahora sabe que esto es válido gracias a FormDataState
     setFormData(prev => ({ ...prev, [`id_${tipo}`]: p.id_persona, [`${tipo}_nombre`]: p.nombre_completo }));
     closeModal(tipo);
   };
