@@ -13,7 +13,7 @@ interface NuevoPrecioModalProps {
 }
 
 // Opciones predefinidas para facilitar la captura (puedes añadir más)
-const ESPECIES = ['Pino', 'Oyamel', 'Ayacahuite', 'Sabino', 'Polin', 'Costera', 'Cedro', 'Barrote'];
+const ESPECIES = ['Pino', 'Oyamel', 'Ayacahuite', 'Sabino', 'Cedro', 'Nogal', 'Parota', 'Roble'];
 const CALIDADES = ['Primera', 'Segunda', 'Tercera', 'Costera'];
 
 export function NuevoPrecioModal({ isOpen, onClose, onSaveSuccess }: NuevoPrecioModalProps) {

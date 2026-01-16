@@ -149,8 +149,8 @@ export const ProductForm = ({ productType, initialData, onSave, onCancel }: Prod
         precio_venta: 0,
         precio_mayoreo: 0,
         precio_compra: 0,
-        genero: 'Pino', 
-        tipo: 'Tabla',
+        genero: '', 
+        tipo: '',
         clasificacion: 'Primera',
         ancho_pulgadas: 0,
         grosor_pulgadas: 0,
@@ -257,7 +257,11 @@ export const ProductForm = ({ productType, initialData, onSave, onCancel }: Prod
               <select {...register("genero", { required: true })} className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
                 <option value="Pino">Pino</option>
                 <option value="Oyamel">Oyamel</option>
-                <option value="Encino">Encino</option>
+                <option value="Nogal">Nogal</option>
+                <option value="Ayacahuite">Ayacahuite</option>
+                <option value="Cedro">Cedro</option>
+                <option value="Roble">Roble</option>
+                <option value="Parota">Parota</option>
               </select>
             </div>
             <div>
@@ -268,6 +272,8 @@ export const ProductForm = ({ productType, initialData, onSave, onCancel }: Prod
                 <option value="Polin">Polín</option>
                 <option value="Barrote">Barrote</option>
                 <option value="Costera">Costera</option>
+                <option value="Tablon">Tablon</option>
+                <option value="Tableta">Tableta</option>
               </select>
             </div>
             <div>
@@ -276,7 +282,6 @@ export const ProductForm = ({ productType, initialData, onSave, onCancel }: Prod
                 <option value="Primera">Primera</option>
                 <option value="Segunda">Segunda</option>
                 <option value="Tercera">Tercera</option>
-                <option value="Mill Run">Mill Run</option>
               </select>
             </div>
             
