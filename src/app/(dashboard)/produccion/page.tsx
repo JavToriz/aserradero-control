@@ -105,13 +105,13 @@ export default function ProduccionDashboardPage() {
         </div>
         <div className="flex gap-2">
           <Link href="/produccion/consumo">
-            <button className="bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 shadow-sm text-sm font-medium transition-colors">
-              <Minus size={16} /> Salida Patio (Consumo)
+            <button className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 shadow-sm text-sm font-medium transition-colors">
+              <Minus size={16} /> Entrada a producción
             </button>
           </Link>
           <Link href="/produccion/transformado">
             <button className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-sm text-sm font-medium transition-colors">
-              <Plus size={16} /> Entrada Producción
+              <Plus size={16} /> Producto transformado
             </button>
           </Link>
         </div>
