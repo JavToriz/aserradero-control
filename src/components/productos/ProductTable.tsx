@@ -1,5 +1,5 @@
 // components/productos/ProductTable.tsx
-// Este componente mostrará los datos y se adaptará según el tipo de producto.
+// Este componente mostrará los datos y se adaptará según el tipo de producto (MADERA O PRODUCTOS).
 import { Pencil, Trash2, Boxes, History } from 'lucide-react';
 
 // Define el tipo para los productos y las funciones de callback

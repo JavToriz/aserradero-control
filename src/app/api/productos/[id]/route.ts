@@ -1,15 +1,13 @@
-// app/api/productos/[id]/route.ts
+// src/app/api/productos/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthPayload } from '@/lib/auth';
 
-// Definimos el tipo correcto para Next.js 15
 type Params = Promise<{ id: string }>;
 
-// GET: Obtener un solo producto por ID
 export async function GET(
   req: Request, 
-  { params }: { params: Params } // 1. Cambiamos el tipado aquí
+  { params }: { params: Params } 
 ) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
@@ -17,7 +15,6 @@ export async function GET(
   }
 
   try {
-    // 2. AWAIT a params antes de usarlo
     const { id } = await params; 
     const productId = parseInt(id, 10);
 
@@ -41,10 +38,9 @@ export async function GET(
   }
 }
 
-// PUT: Actualizar un producto
 export async function PUT(
   req: Request, 
-  { params }: { params: Params } // 1. Tipado actualizado
+  { params }: { params: Params } 
 ) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
@@ -52,12 +48,30 @@ export async function PUT(
   }
 
   try {
-    // 2. AWAIT a params
     const { id } = await params;
     const productId = parseInt(id, 10);
     
     const body = await req.json();
-    const { tipo_categoria, atributos, ...productData } = body;
+    const { tipo_categoria, atributos, codigo_barras, clave_sat, ...productData } = body;
+
+    if (codigo_barras && codigo_barras.trim() !== '') {
+        const existingBarcode = await prisma.productoCatalogo.findFirst({
+            where: {
+                codigo_barras: codigo_barras.trim(),
+                id_aserradero: authPayload.aserraderoId,
+                id_producto_catalogo: {
+                    not: productId 
+                }
+            }
+        });
+
+        if (existingBarcode) {
+            return NextResponse.json(
+                { message: `El código de barras "${codigo_barras}" ya está registrado en otro producto.` },
+                { status: 409 }
+            );
+        }
+    }
 
     const updatedProduct = await prisma.productoCatalogo.update({
       where: {
@@ -68,13 +82,27 @@ export async function PUT(
       },
       data: {
         ...productData,
-        atributos_madera: tipo_categoria === 'MADERA_ASERRADA' ? { update: atributos } : undefined,
-        atributos_triplay: tipo_categoria === 'TRIPLAY_AGLOMERADO' ? { update: atributos } : undefined,
+        codigo_barras: codigo_barras?.trim() || null, 
+        clave_sat: clave_sat?.trim() || null,
+        // 👇 SOLUCIÓN: Usamos UPSERT para que funcione con los productos importados del CSV
+        atributos_madera: tipo_categoria === 'MADERA_ASERRADA' ? { 
+            upsert: {
+                create: atributos,
+                update: atributos
+            }
+        } : undefined,
+        atributos_triplay: tipo_categoria === 'TRIPLAY_AGLOMERADO' ? { 
+            upsert: {
+                create: atributos,
+                update: atributos
+            }
+        } : undefined,
       },
     });
 
     return NextResponse.json(updatedProduct);
   } catch (error: any) {
+    console.error("Error en PUT Producto:", error); // <-- Para ver el error real en la terminal si algo más falla
     if (error.code === 'P2025') {
       return NextResponse.json({ message: "Producto no encontrado" }, { status: 404 });
     }
@@ -82,10 +110,9 @@ export async function PUT(
   }
 }
 
-// DELETE: Soft Delete
 export async function DELETE(
   req: Request, 
-  { params }: { params: Params } // 1. Tipado actualizado
+  { params }: { params: Params } 
 ) {
   const authPayload = await getAuthPayload(req);
   if (!authPayload || !authPayload.aserraderoId) {
@@ -96,7 +123,6 @@ export async function DELETE(
     const { id } = await params;
     const productId = parseInt(id, 10);
 
-    // EN LUGAR DE delete, USAMOS update
     const productoDesactivado = await prisma.productoCatalogo.update({
       where: {
         id_producto_catalogo_id_aserradero: {

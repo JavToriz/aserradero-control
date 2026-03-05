@@ -59,7 +59,9 @@ export async function GET(req: NextRequest) {
             // Buscar en Descripción
             { descripcion: { contains: search, mode: 'insensitive' } },
             // Buscar en SKU (¡Aquí está el cambio clave!)
-            { sku: { contains: search, mode: 'insensitive' } } 
+            { sku: { contains: search, mode: 'insensitive' } },
+            // 👇 NUEVO: Buscar en Código de Barras (Para el lector de Punto de Venta) 👇
+            { codigo_barras: { contains: search, mode: 'insensitive' } } 
         ];
 
         // Si el usuario escribe números (ej: "2.5"), buscamos en medidas también
@@ -84,54 +86,66 @@ export async function GET(req: NextRequest) {
             atributos_triplay: true,
         },
         orderBy: { id_producto_catalogo: 'desc' },
-        take: 15
+        //take: 15 -- // Se ocupa take para decirle cuantos resultados mostrar en pantalla
         });
         return NextResponse.json(productos);
     } catch (error) {
         console.error(error);
         return NextResponse.json({ message: "Error al obtener productos" }, { status: 500 });
     }
-    }
+}
 
 // CREAR un nuevo producto
 export async function POST(req: Request) {
-
-  // Obtenemos el payload que el middleware ya validó
   const authPayload = await getAuthPayload(req);
-  // Si por alguna razón no hay payload, denegar (aunque el middleware ya debería haberlo hecho)
   if (!authPayload) {
     return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
   }
 
   try {
     const body = await req.json();
-    // Destructure `id_aserradero` from the body
-    const { tipo_categoria, atributos, sku, ...productData } = body;
+    // 👇 NUEVO: Extraemos clave_sat del body
+    const { tipo_categoria, atributos, sku, codigo_barras, clave_sat, ...productData } = body;
     const id_aserradero = authPayload.aserraderoId;
 
-    // Add a check to ensure the aserradero ID is provided
     if (!id_aserradero) {
         return NextResponse.json({ message: "El campo 'id_aserradero' es requerido" }, { status: 400 });
     }
-     // 👇 VALIDACIÓN DE SKU DUPLICADO 👇
+
     if (sku && sku.trim() !== '') {
         const existingProduct = await prisma.productoCatalogo.findUnique({
             where: {
-              sku_unico_por_aserradero: { // Prisma crea este nombre basado en @@unique
+              sku_unico_por_aserradero: { 
                   sku: sku,
-                  id_aserradero: authPayload.aserraderoId // <-- Comprobación clave
+                  id_aserradero: authPayload.aserraderoId 
               }
             },
         });
 
         if (existingProduct) {
-            // Usamos el código de estado 409 Conflict
             return NextResponse.json(
                 { message: `El SKU "${sku}" ya existe. Por favor, utiliza uno diferente.` },
                 { status: 409 }
             );
         }
     }
+
+    if (codigo_barras && codigo_barras.trim() !== '') {
+        const existingBarcode = await prisma.productoCatalogo.findFirst({
+            where: {
+                codigo_barras: codigo_barras.trim(),
+                id_aserradero: authPayload.aserraderoId
+            }
+        });
+
+        if (existingBarcode) {
+            return NextResponse.json(
+                { message: `El código de barras "${codigo_barras}" ya está registrado en otro producto.` },
+                { status: 409 }
+            );
+        }
+    }
+
     let newProduct;
 
     if (tipo_categoria === 'MADERA_ASERRADA') {
@@ -139,6 +153,8 @@ export async function POST(req: Request) {
         data: {
           ...productData,
           sku: sku,
+          codigo_barras: codigo_barras?.trim() || null,
+          clave_sat: clave_sat?.trim() || null, // 👇 Guardamos clave_sat
           tipo_categoria,
           id_aserradero: id_aserradero, 
           atributos_madera: {
@@ -151,6 +167,8 @@ export async function POST(req: Request) {
         data: {
           ...productData,
           sku: sku,
+          codigo_barras: codigo_barras?.trim() || null,
+          clave_sat: clave_sat?.trim() || null, // 👇 Guardamos clave_sat
           tipo_categoria,
           id_aserradero: id_aserradero, 
           atributos_triplay: {

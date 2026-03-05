@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       },
       include: { 
         producto: {
-            include: { atributos_triplay: true } // <--- ESTO ES LA CLAVE
+            include: { atributos_triplay: true } 
         }
       }
     });
@@ -25,12 +25,12 @@ export async function GET(req: NextRequest) {
       cantidad: Number(s.piezas_actuales),
       ubicacion: s.ubicacion,
       producto: {
+        id_producto_catalogo: s.producto.id_producto_catalogo, // <--- ¡AQUÍ ESTÁ LA SOLUCIÓN!
         nombre: s.producto.descripcion,
         sku: s.producto.sku,
         unidad_medida: s.producto.unidad_medida,
         precio_venta: Number(s.producto.precio_venta),
         precio_compra: Number(s.producto.precio_compra || 0),
-        // Pasamos los atributos al frontend
         atributos: s.producto.atributos_triplay 
       }
     }));
@@ -56,31 +56,25 @@ export async function POST(req: NextRequest) {
     
     const ubicacionEnum = mapUbicacion[String(ubicacion)] || "BODEGA";
 
-    // 1. Buscamos si ya existe registro de este producto en esta ubicación
     const stockExistente = await prisma.stockProductoTerminado.findFirst({
         where: {
             id_aserradero: authPayload.aserraderoId,
             id_producto_catalogo: Number(id_producto),
             ubicacion: ubicacionEnum,
-            // Importante: Aseguramos que sea un stock "genérico" sin orden de origen
-            // para no mezclar con lotes de producción si los hubiera.
             id_orden_aserrado_origen: null 
         }
     });
 
     if (stockExistente) {
-        // A) SI EXISTE: Actualizamos sumando la cantidad
         await prisma.stockProductoTerminado.update({
             where: { id_stock: stockExistente.id_stock },
             data: {
                 piezas_actuales: { increment: cantidadNum },
-                // Opcional: Actualizamos la fecha para saber que hubo movimiento reciente
                 fecha_ingreso: new Date() 
             }
         });
         return NextResponse.json({ message: "Stock actualizado correctamente" });
     } else {
-        // B) NO EXISTE: Creamos uno nuevo
         const stock = await prisma.stockProductoTerminado.create({
             data: {
                 id_aserradero: authPayload.aserraderoId,

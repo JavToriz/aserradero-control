@@ -16,7 +16,7 @@ const menuItems = [
   { name: 'Productos', href: '/productos', icon: Package },
   { name: 'Precios', href: '/configuracion/precios', icon: CircleDollarSign },
   { name: 'Inventario / Madera', href: '/produccion', icon: Boxes },
-  { name: 'Inventario / Triplay', href: '/inventario-comercial', icon: Layers },
+  { name: 'Inventario / Productos', href: '/inventario-comercial', icon: Layers },
   
   // --- AQUÍ ESTÁ TU NUEVO GRUPO ---
   { 

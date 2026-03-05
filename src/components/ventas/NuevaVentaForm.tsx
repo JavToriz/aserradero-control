@@ -8,7 +8,7 @@ import { PersonaFormModal } from '@/components/personas/PersonaFormModal';
 // Si no tienes el archivo aún, créalo basándote en PersonaFormModal
 import { VehiculoFormModal } from '@/components/vehiculos/VehiculoFormModal'; 
 import { SeleccionarInventarioModal } from './SeleccionarInventarioModal';
-import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box } from 'lucide-react'; 
+import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box, Barcode } from 'lucide-react'; 
 import { NotaVentaImprimible } from './NotaVentaImprimible'; 
 
 // Tipos
@@ -22,6 +22,7 @@ type ProductoCatalogo = {
   precio_venta: number;   
   precio_mayoreo?: number; 
   sku?: string; 
+  codigo_barras?: string; // 👇 NUEVO: Agregamos el tipado para el código de barras
   tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
   atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number; genero?: string; } | null;
   atributos_triplay?: { espesor_mm: number; ancho_ft: number; largo_ft: number } | null;
@@ -101,10 +102,20 @@ export function NuevaVentaForm() {
     return (
       <div className="flex flex-col py-1 w-full">
         <span className="font-medium text-gray-800 text-sm truncate">{item.descripcion}</span>
-        <div className="flex justify-between items-center mt-0.5">
-          <div className="flex items-center gap-1 text-xs text-blue-600 font-mono">
-             <Box size={10} />
-             <span>SKU: {item.sku || 'S/N'}</span>
+        <div className="flex justify-between items-center mt-1">
+          <div className="flex items-center gap-3 text-xs text-blue-600 font-mono">
+             {/* 👇 NUEVO: Mostramos el código de barras si existe, si no el SKU 👇 */}
+             {item.codigo_barras ? (
+                <div className="flex items-center gap-1 text-purple-600">
+                  <Barcode size={12} />
+                  <span>EAN: {item.codigo_barras}</span>
+                </div>
+             ) : (
+                <div className="flex items-center gap-1">
+                  <Box size={10} />
+                  <span>SKU: {item.sku || 'S/N'}</span>
+                </div>
+             )}
           </div>
           {medidas && (
             <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
@@ -373,7 +384,7 @@ export function NuevaVentaForm() {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-gray-100 pb-6">
              <div>
                <h2 className="text-xl font-bold text-gray-800 mb-1">2. Productos y Pago</h2>
-               <p className="text-sm text-gray-500">Agrega productos buscando por Nombre o SKU.</p>
+               <p className="text-sm text-gray-500">Agrega productos buscando por Nombre, SKU o Lector de Barras.</p>
              </div>
              
              <div className="flex flex-wrap gap-4 items-end bg-gray-50 p-3 rounded-xl border border-gray-100 w-full lg:w-auto">
@@ -439,8 +450,8 @@ export function NuevaVentaForm() {
                   <tr key={item.idUnico} className="hover:bg-blue-50/40 relative group transition-colors">
                     <td className="px-4 py-3 align-top">
                       <SearchAndCreateInput<ProductoCatalogo>
-                        label="" 
-                        placeholder="Buscar por Nombre o SKU..."
+                        label=""
+                        placeholder="Escanear Código, buscar por Nombre o SKU..."
                         searchApiUrl="/api/productos"
                         displayField="descripcion"
                         inputValue={item.nombreProducto}
