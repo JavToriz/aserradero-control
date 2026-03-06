@@ -78,11 +78,12 @@ export default function TablaStockComercial() {
   const totalPiezas = filteredData.reduce((acc, item) => acc + item.cantidad, 0);
 
   // --- LÓGICA DE CÁLCULO ---
-  const calcularPrecioSugerido = (costo: number, margen: number) => {
+  // --- LÓGICA DE CÁLCULO (Cambiado de Margen a Marcaje) ---
+  const calcularPrecioSugerido = (costo: number, porcentajeGanancia: number) => {
     if (!costo || costo <= 0) return 0;
-    const decimal = margen / 100;
-    if (decimal >= 1) return 0; 
-    return costo / (1 - decimal);
+    const decimal = porcentajeGanancia / 100;
+    // Nueva fórmula: Costo + (Costo * porcentaje)
+    return costo * (1 + decimal); 
   };
 
   // --- GUARDADO INDIVIDUAL ---
