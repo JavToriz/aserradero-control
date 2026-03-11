@@ -1,27 +1,31 @@
-// components/productos/ProductTable.tsx
-// Este componente mostrará los datos y se adaptará según el tipo de producto (MADERA O PRODUCTOS).
-import { Pencil, Trash2, Boxes, History } from 'lucide-react';
+// src/components/productos/ProductTable.tsx
+import { Pencil, Trash2, Save, Loader2 } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
-// Define el tipo para los productos y las funciones de callback
-// CAMBIO NECESARIO: Agregamos descripcion y tipo_categoria explícitamente
 export type Product = {
   id_producto_catalogo: number;
-  descripcion: string; // <--- Agregado para cumplir con el padre
-  tipo_categoria: any; // <--- Agregado (usamos any para ser flexible con strings o enums)
-  //stock: number;
-  [key: string]: any; // Permite otras propiedades
+  descripcion: string; 
+  tipo_categoria: any; 
+  precio_compra?: number;
+  precio_venta: number;
+  [key: string]: any; 
 };
 
 interface ProductTableProps {
   products: Product[];
   type: 'madera' | 'triplay';
-  onEdit: (product: Product) => void;   // Función para editar
-  onDelete: (product: Product) => void; // Función para eliminar
-  //onAdjustStock: (product: Product) => void;
-  //onShowHistory: (product: Product) => void;
+  onEdit: (product: Product) => void;   
+  onDelete: (product: Product) => void; 
+  modoSimulacion?: boolean;
+  margenObjetivo?: number;
+  editedPrices?: Record<number, number>;
+  setEditedPrices?: (prices: Record<number, number>) => void;
+  onSavePrice?: (id: number, price: number) => void;
+  savingProduct?: number | null;
 }
 
-// Función helper para formatear las medidas (sin cambios)
+// Función helper para formatear las medidas
 const formatMedidas = (product: any, type: 'madera' | 'triplay') => {
     if (type === 'madera' && product.atributos_madera) {
         const { grosor_pulgadas, ancho_pulgadas, largo_pies } = product.atributos_madera;
@@ -34,54 +38,48 @@ const formatMedidas = (product: any, type: 'madera' | 'triplay') => {
     return 'N/A';
 };
 
-// =========== Funciones para obtener margen de ganancia ===========
-
-/**
- * Calcula el margen de ganancia en porcentaje.
- * @param venta Precio de venta del producto.
- * @param compra Precio de compra del producto.
- * @returns El margen como un string formateado (ej: "25.00%") o "N/A".
- */
-const calculateMargin = (venta: number, compra: number | null | undefined): string => {
-  const precioVenta = Number(venta);
-  const precioCompra = Number(compra);
-
-  if (!precioVenta || precioVenta <= 0 || precioCompra < 0) {
-    return 'N/A';
-  }
-
-  const margin = ((precioVenta - precioCompra) / precioVenta) * 100;
-  return margin.toFixed(2) + '%';
+// Fórmula de Marcaje (Costo + %) para el simulador
+const calcularPrecioSugerido = (costo: number, porcentajeGanancia: number) => {
+    if (!costo || costo <= 0) return 0;
+    const decimal = porcentajeGanancia / 100;
+    return costo * (1 + decimal); 
 };
 
-/**
- * Devuelve una clase de CSS basada en el valor del margen.
- * @param venta Precio de venta.
- * @param compra Precio de compra.
- * @returns Una cadena con la clase de Tailwind CSS.
- */
+// --- CORRECCIÓN: Calcula el marcaje (Markup) real para la vista normal ---
+const calculateMarkup = (venta: number, compra: number | null | undefined): string => {
+  const precioVenta = Number(venta);
+  const precioCompra = Number(compra);
+  if (!precioVenta || precioVenta <= 0 || !precioCompra || precioCompra <= 0) return 'N/A';
+  
+  // Fórmula de Marcaje: ((Venta / Costo) - 1) * 100
+  const markup = ((precioVenta / precioCompra) - 1) * 100;
+  return markup.toFixed(2) + '%';
+};
+
 const getMarginStyle = (venta: number, compra: number | null | undefined): string => {
     const precioVenta = Number(venta);
     const precioCompra = Number(compra);
-
-    if (!precioVenta || precioVenta <= 0 || precioCompra < 0) {
-        return 'text-gray-500';
-    }
-    const margin = ((precioVenta - precioCompra) / precioVenta) * 100;
-
-    if (margin < 15) return 'text-red-600 font-semibold';
-    if (margin < 30) return 'text-yellow-600 font-semibold';
+    if (!precioVenta || precioVenta <= 0 || !precioCompra || precioCompra <= 0) return 'text-gray-500';
+    
+    const markup = ((precioVenta / precioCompra) - 1) * 100;
+    if (markup < 15) return 'text-red-600 font-semibold';
+    if (markup < 30) return 'text-yellow-600 font-semibold';
     return 'text-green-600 font-semibold';
 }
+// --------------------------------------------------------------------------
 
-// =======================================================
+export const ProductTable = ({ 
+    products, type, onEdit, onDelete,
+    modoSimulacion = false, margenObjetivo = 30, editedPrices = {}, setEditedPrices, onSavePrice, savingProduct
+}: ProductTableProps) => {
+    
+    // Bandera para saber si estamos en modo simulador activo (solo válido para triplay)
+    const isSimulacionActiva = type === 'triplay' && modoSimulacion;
 
-
-export const ProductTable = ({ products, type, onEdit, onDelete }: ProductTableProps) => {
     return (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-lg shadow overflow-x-auto border border-gray-200">
             <table className="w-full text-sm text-left text-gray-600">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b border-gray-200">
                     <tr>
                         <th scope="col" className="px-6 py-3">SKU</th>
                         <th scope="col" className="px-6 py-3">Descripción</th>
@@ -90,67 +88,109 @@ export const ProductTable = ({ products, type, onEdit, onDelete }: ProductTableP
                         {type === 'madera' && <th scope="col" className="px-6 py-3">Clasificación</th>}
                         {type === 'triplay' && <th scope="col" className="px-6 py-3">Procedencia</th>}
                         <th scope="col" className="px-6 py-3">Medidas</th>
-                        {type === 'triplay' && <th scope="col" className="px-6 py-3">Precio compra</th>}
-                        <th scope="col" className="px-6 py-3">Precio Venta</th>
-                        {type === 'triplay' && <th scope="col" className="px-6 py-3">Margen (%)</th>}
-                        <th scope="col" className="px-6 py-3">Acciones</th>
+                        
+                        {/* Columnas dinámicas de Precios */}
+                        {isSimulacionActiva ? (
+                            <>
+                                <th scope="col" className="px-6 py-3 text-right bg-yellow-50 text-gray-800">Costo Base</th>
+                                <th scope="col" className="px-6 py-3 text-right text-gray-800">Precio Actual</th>
+                                <th scope="col" className="px-6 py-3 text-center bg-blue-50 text-blue-800">Nuevo Precio</th>
+                                <th scope="col" className="px-6 py-3 text-right bg-green-50 text-green-800">Ganancia $</th>
+                            </>
+                        ) : (
+                            <>
+                                {type === 'triplay' && <th scope="col" className="px-6 py-3 text-right">Costo</th>}
+                                <th scope="col" className="px-6 py-3 text-right text-blue-700">Precio Venta</th>
+                                {type === 'triplay' && <th scope="col" className="px-6 py-3 text-right">Margen %</th>}
+                            </>
+                        )}
+                        <th scope="col" className="px-6 py-3 text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {products.map(product => (
-                        <tr key={product.id_producto_catalogo} className="bg-white border-b hover:bg-gray-50">
-                            {/* ... Celdas de datos sin cambios ... */}
-                            <td className="px-6 py-4 font-medium">{product.sku}</td>
-                            <td className="px-6 py-4">{product.descripcion}</td>
-                            <td className="px-6 py-4">{type === 'madera' ? product.atributos_madera?.genero : product.atributos_triplay?.genero}</td>
-                            <td className="px-6 py-4">{type === 'madera' ? product.atributos_madera?.tipo : product.atributos_triplay?.tipo}</td>
-                            {type === 'madera' && <td className="px-6 py-4">{product.atributos_madera?.clasificacion}</td>}
-                            {type === 'triplay' && <td className="px-6 py-4">{product.atributos_triplay?.procedencia}</td>}
-                            <td className="px-6 py-4">{formatMedidas(product, type)}</td>
-                            {type === 'triplay' && <td className="px-6 py-4">${product.precio_compra}</td>}
-                            <td className="px-6 py-4">${product.precio_venta}</td>
-                            {type === 'triplay' && (
-                                <td className={`px-6 py-4 ${getMarginStyle(product.precio_venta, product.precio_compra)}`}>
-                                    {calculateMargin(product.precio_venta, product.precio_compra)}
+                    {products.map(product => {
+                        const idProd = product.id_producto_catalogo;
+                        const costo = Number(product.precio_compra || 0);
+                        const precioActual = Number(product.precio_venta || 0);
+
+                        // Lógica del simulador (Solo se usa si isSimulacionActiva es true)
+                        const precioSugeridoFormula = calcularPrecioSugerido(costo, margenObjetivo);
+                        const precioSugeridoDisplay = editedPrices[idProd] !== undefined 
+                            ? editedPrices[idProd] 
+                            : Number(precioSugeridoFormula.toFixed(2));
+                        const ganancia = precioSugeridoDisplay - costo;
+                        const tieneCambiosPendientes = isSimulacionActiva && precioSugeridoDisplay !== precioActual;
+                        const isSavingRow = savingProduct === idProd;
+
+                        return (
+                            <tr key={idProd} className="bg-white border-b hover:bg-gray-50/80 transition-colors">
+                                <td className="px-6 py-4 font-mono font-medium text-xs text-gray-500">{product.sku}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900">{product.descripcion}</td>
+                                <td className="px-6 py-4 text-xs uppercase">{type === 'madera' ? product.atributos_madera?.genero : product.atributos_triplay?.genero}</td>
+                                <td className="px-6 py-4 text-xs uppercase">{type === 'madera' ? product.atributos_madera?.tipo : product.atributos_triplay?.tipo}</td>
+                                {type === 'madera' && <td className="px-6 py-4 text-xs uppercase">{product.atributos_madera?.clasificacion}</td>}
+                                {type === 'triplay' && <td className="px-6 py-4 text-xs uppercase">{product.atributos_triplay?.procedencia}</td>}
+                                <td className="px-6 py-4 text-xs text-gray-500">{formatMedidas(product, type)}</td>
+                                
+                                {/* Celdas Dinámicas de Precios */}
+                                {isSimulacionActiva ? (
+                                    <>
+                                        <td className="px-6 py-4 text-right font-mono text-xs text-gray-600 bg-yellow-50/30 border-l border-yellow-100">
+                                            ${costo.toFixed(2)}
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-mono text-sm text-gray-800">
+                                            ${precioActual.toFixed(2)}
+                                        </td>
+                                        <td className="px-2 py-4 align-middle bg-blue-50/30 border-l border-r border-blue-100">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <span className="text-gray-400 text-xs">$</span>
+                                                <Input 
+                                                    type="number" step="0.01"
+                                                    className={`h-8 w-24 text-right font-bold font-mono text-sm ${tieneCambiosPendientes ? 'border-blue-400 ring-1 ring-blue-100 bg-white' : 'bg-transparent border-transparent hover:border-gray-300'}`}
+                                                    value={precioSugeridoDisplay}
+                                                    onChange={(e) => setEditedPrices && setEditedPrices({ ...editedPrices, [idProd]: Number(e.target.value) })}
+                                                />
+                                                {tieneCambiosPendientes && idProd > 0 && onSavePrice && (
+                                                    <Button 
+                                                        size="icon" variant="ghost" 
+                                                        className="h-8 w-8 text-blue-600 hover:bg-blue-100 animate-in zoom-in"
+                                                        disabled={isSavingRow}
+                                                        onClick={() => onSavePrice(idProd, precioSugeridoDisplay)}
+                                                    >
+                                                        {isSavingRow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-mono text-xs text-green-700 bg-green-50/30">
+                                            ${ganancia.toFixed(2)}
+                                        </td>
+                                    </>
+                                ) : (
+                                    <>
+                                        {type === 'triplay' && <td className="px-6 py-4 text-right font-mono text-gray-500">${costo.toFixed(2)}</td>}
+                                        <td className="px-6 py-4 text-right font-mono font-bold text-blue-700">${precioActual.toFixed(2)}</td>
+                                        {type === 'triplay' && (
+                                            <td className={`px-6 py-4 text-right ${getMarginStyle(precioActual, costo)}`}>
+                                                {calculateMarkup(precioActual, costo)} {/* <-- Función corregida */}
+                                            </td>
+                                        )}
+                                    </>
+                                )}
+
+                                <td className="px-6 py-4 text-center">
+                                    <div className="flex items-center justify-center gap-3">
+                                        <button onClick={() => onEdit(product)} className="text-blue-600 hover:text-blue-800 transition-colors" title="Editar detalles">
+                                            <Pencil size={18} />
+                                        </button>
+                                        <button onClick={() => onDelete(product)} className="text-red-500 hover:text-red-700 transition-colors" title="Eliminar producto">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </td>
-                            )}
-                            {/*<td className="px-6 py-4">
-                              <span className={getStockStyle(product.stock)}>
-                                {product.stock}
-                              </span> {product.unidad_medida}
-                            </td> */}
-                            <td className="px-6 py-4 flex gap-4">
-                                {/*<button 
-                                  onClick={() => onAdjustStock(product)} 
-                                  className="text-gray-600 hover:text-indigo-800"
-                                  title="Ajustar Stock"
-                                >
-                                  <Boxes size={18} />
-                                </button>
-                                <button 
-                                  onClick={() => onShowHistory(product)} 
-                                  className="text-gray-600 hover:text-purple-800"
-                                  title="Ver Historial"
-                                >
-                                  <History size={18} />
-                                </button> */}
-                                <button 
-                                    onClick={() => onEdit(product)} 
-                                    className="text-blue-600 hover:text-blue-800"
-                                    aria-label="Editar producto"
-                                >
-                                    <Pencil size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => onDelete(product)} 
-                                    className="text-red-600 hover:text-red-800"
-                                    aria-label="Eliminar producto"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
