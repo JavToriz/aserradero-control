@@ -1,15 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
-  Menu, X, ChevronLeft, ChevronRight, ChevronDown,
+  Menu, X, ChevronLeft, ChevronRight, ChevronDown, Check, Loader2,
   Package, CircleDollarSign, FileText, ShoppingCart, 
   Layers, Boxes, Receipt, FolderOpen 
 } from 'lucide-react'; // Agregué FolderOpen y ChevronDown
 import LogoutButton from '../ui/LogoutButton';
 import { CajaStatusBadge } from '../caja/CajaStatusBadge';
+import { supabase } from '@/lib/supabase';
+
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch(e) {
+    return null;
+  }
+}
+
+function getCookie(name: string) {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift();
+  return null;
+}
 
 // DEFINICIÓN DEL MENÚ CON SOPORTE PARA SUB-MENÚS
 const menuItems = [
@@ -35,14 +57,108 @@ const menuItems = [
 ];
 
 export function Sidebar() { 
+  const pathname = usePathname();
+  const router = useRouter();
+
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   
+  // Estado para el selector de perfiles (Aserraderos)
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [selectedAserradero, setSelectedAserradero] = useState({ id: 0, name: 'Cargando...' });
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  const [aserraderos, setAserraderos] = useState<any[]>([]);
+  const [loadingAserraderos, setLoadingAserraderos] = useState(true);
+  const [selectingId, setSelectingId] = useState<number | null>(null);
+
+  // Cargar aserraderos al montar
+  useEffect(() => {
+    const fetchAserraderos = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const res = await fetch('/api/auth/session', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const list = data.aserraderos || [];
+          setAserraderos(list);
+
+          // Buscar el aserradero actual desde el token
+          const token = localStorage.getItem('sessionToken') || getCookie('sessionToken');
+          if (token) {
+             const payload = parseJwt(token);
+             if (payload && payload.aserraderoId) {
+                const current = list.find((a: any) => a.id_aserradero === payload.aserraderoId);
+                if (current) {
+                   setSelectedAserradero({ id: current.id_aserradero, name: current.nombre });
+                }
+             }
+          } else if (list.length > 0) {
+             setSelectedAserradero({ id: list[0].id_aserradero, name: list[0].nombre });
+          }
+        }
+      } catch (err) {
+        console.error('Error al cargar aserraderos:', err);
+      } finally {
+        setLoadingAserraderos(false);
+      }
+    };
+    fetchAserraderos();
+  }, []);
+
+  const handleSelectSucursal = async (id_aserradero: number, nombre: string) => {
+    setSelectingId(id_aserradero);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sesión expirada");
+
+      const res = await fetch('/api/auth/select-sawmill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_aserradero,
+          supabase_token: session.access_token 
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      localStorage.setItem('sessionToken', data.sessionToken); 
+      document.cookie = `sessionToken=${data.sessionToken}; path=/; max-age=14400; SameSite=Lax`;
+
+      setSelectedAserradero({ id: id_aserradero, name: nombre });
+      setIsProfileMenuOpen(false);
+      
+      // Recargar completamente la página para forzar que toda la app use el nuevo token y actualice su estado
+      window.location.reload(); 
+    } catch (err: any) {
+      alert(err.message || 'Error al cambiar de sucursal');
+    } finally {
+      setSelectingId(null);
+    }
+  };
+
+  // Cerrar menú de perfiles al hacer click afuera
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Estado para controlar qué menús están abiertos
   // Iniciamos vacío, pero podríamos checar la URL para abrir el correcto al inicio
   const [openSubmenus, setOpenSubmenus] = useState<string[]>([]);
   
-  const pathname = usePathname();
   const isCajaActive = pathname === '/caja' || pathname.startsWith('/caja');
 
   // EFECTO: Abrir automáticamente el menú si estoy en una ruta hija al cargar la página
@@ -105,14 +221,74 @@ export function Sidebar() {
             h-16 flex items-center flex-shrink-0 border-b border-gray-200 w-full relative 
             ${isCollapsed ? 'justify-center' : 'justify-between px-4'}
         `}>
-          <h1 className="text-xl font-bold text-gray-800 whitespace-nowrap overflow-hidden">
-            {isCollapsed ? <span>🌲</span> : (
-              <span className="flex items-center gap-2">
-                🌲 Aserradero
-                <button onClick={() => setIsMobileOpen(false)} className="md:hidden ml-auto p-1"><X className="w-5 h-5 text-gray-500" /></button>
-              </span>
-            )}
-          </h1>
+          {isCollapsed ? (
+            <span 
+              className="text-xl font-bold cursor-pointer hover:opacity-80 transition-opacity" 
+              onClick={() => { setIsCollapsed(false); setIsProfileMenuOpen(true); }}
+              title={selectedAserradero.name}
+            >
+              🌲
+            </span>
+          ) : (
+            <div className="relative w-full flex items-center pr-2" ref={profileMenuRef}>
+              <button 
+                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                className="flex items-center justify-between w-full p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="text-xl shrink-0">🌲</span>
+                  <span className="font-bold text-gray-800 truncate select-none leading-none pt-0.5">
+                    {selectedAserradero.name}
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 flex-shrink-0 ml-1 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              <button onClick={() => setIsMobileOpen(false)} className="md:hidden ml-1 p-1 flex-shrink-0">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+
+              {/* Menú Desplegable de Perfiles */}
+              {isProfileMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 w-[calc(100%+0.5rem)] min-w-[220px] bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-[60]">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Cambiar Sucursal
+                  </div>
+                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                    {loadingAserraderos ? (
+                      <div className="p-3 text-sm text-gray-500 text-center flex justify-center items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Cargando...
+                      </div>
+                    ) : aserraderos.length === 0 ? (
+                      <div className="p-3 text-sm text-gray-500 text-center">
+                        No hay sucursales
+                      </div>
+                    ) : (
+                      aserraderos.map(aserradero => (
+                        <button
+                          key={aserradero.id_aserradero}
+                          onClick={() => handleSelectSucursal(aserradero.id_aserradero, aserradero.nombre)}
+                          disabled={selectingId !== null}
+                          className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between transition-colors
+                            ${selectedAserradero.id === aserradero.id_aserradero ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 hover:bg-gray-50'}
+                            ${selectingId === aserradero.id_aserradero ? 'opacity-70 pointer-events-none' : ''}
+                          `}
+                        >
+                          <span className="truncate pr-2 font-medium flex-1">{aserradero.nombre}</span>
+                          {selectingId === aserradero.id_aserradero ? (
+                            <Loader2 className="w-4 h-4 flex-shrink-0 text-blue-600 animate-spin" />
+                          ) : selectedAserradero.id === aserradero.id_aserradero ? (
+                            <Check className="w-4 h-4 flex-shrink-0 text-blue-600" />
+                          ) : null}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="hidden md:flex items-center justify-center w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm text-gray-500 hover:bg-gray-100 absolute -right-0.5 top-1/2 -translate-y-1/2 z-50"
