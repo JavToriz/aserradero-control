@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchAndCreateInput } from '@/components/ui/SearchAndCreateInput';
 import { PersonaFormModal } from '@/components/personas/PersonaFormModal';
-// IMPORTANTE: Verifica que esta ruta sea correcta según tu estructura de carpetas
-// Si no tienes el archivo aún, créalo basándote en PersonaFormModal
 import { VehiculoFormModal } from '@/components/vehiculos/VehiculoFormModal'; 
 import { SeleccionarInventarioModal } from './SeleccionarInventarioModal';
-import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box, Barcode } from 'lucide-react'; 
+import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box, Barcode, Receipt } from 'lucide-react'; 
 import { NotaVentaImprimible } from './NotaVentaImprimible'; 
+// 👇 NUEVO: Importamos el Modal del Ticket
+import { ImprimirTicketModal } from '@/components/ventas/ImprimirTicketModal';
 
 // Tipos
 type Cliente = { id_persona: number; nombre_completo: string; [key: string]: any };
@@ -22,7 +22,7 @@ type ProductoCatalogo = {
   precio_venta: number;   
   precio_mayoreo?: number; 
   sku?: string; 
-  codigo_barras?: string; // 👇 NUEVO: Agregamos el tipado para el código de barras
+  codigo_barras?: string; 
   tipo_categoria: 'MADERA_ASERRADA' | 'TRIPLAY_AGLOMERADO';
   atributos_madera?: { grosor_pulgadas: number; ancho_pulgadas: number; largo_pies: number; genero?: string; } | null;
   atributos_triplay?: { espesor_mm: number; ancho_ft: number; largo_ft: number } | null;
@@ -54,7 +54,6 @@ export function NuevaVentaForm() {
   const [reembarque, setReembarque] = useState<ReembarqueSearch | null>(null);
   const [reembarqueQuery, setReembarqueQuery] = useState('');
 
-  // Función auxiliar para obtener la fecha local en formato YYYY-MM-DD
   const getFechaLocal = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -63,9 +62,8 @@ export function NuevaVentaForm() {
     return `${year}-${month}-${day}`;
   };
 
-  // ... dentro de tu componente
   const [fecha, setFecha] = useState(getFechaLocal());
-  const [tipoPago, setTipoPago] = useState('Efectivo');
+  const [tipoPago, setTipoPago] = useState('EFECTIVO');
   const [cuentaDestino, setCuentaDestino] = useState(''); 
   const [quienExpide, setQuienExpide] = useState(''); 
 
@@ -73,14 +71,16 @@ export function NuevaVentaForm() {
   
   // Estados de Modales
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
-  const [isVehiculoModalOpen, setIsVehiculoModalOpen] = useState(false); // Nuevo estado para Vehículo
+  const [isVehiculoModalOpen, setIsVehiculoModalOpen] = useState(false); 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  
+  // 👇 NUEVO: Estado para controlar el modal del Ticket
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [productoParaStock, setProductoParaStock] = useState<{idUnico: string, producto: any, cantidad: number} | null>(null);
   const [ventaGuardada, setVentaGuardada] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- RENDERIZADO PERSONALIZADO ---
   const renderReembarqueItem = (item: ReembarqueSearch) => (
     <div className="flex flex-col py-1">
       <span className="font-bold">Folio: {item.folio_progresivo}</span>
@@ -104,7 +104,6 @@ export function NuevaVentaForm() {
         <span className="font-medium text-gray-800 text-sm truncate">{item.descripcion}</span>
         <div className="flex justify-between items-center mt-1">
           <div className="flex items-center gap-3 text-xs text-blue-600 font-mono">
-             {/* 👇 NUEVO: Mostramos el código de barras si existe, si no el SKU 👇 */}
              {item.codigo_barras ? (
                 <div className="flex items-center gap-1 text-purple-600">
                   <Barcode size={12} />
@@ -127,7 +126,6 @@ export function NuevaVentaForm() {
     );
   };
 
-  // --- Lógica Carrito ---
   const agregarFila = () => {
     setCarrito(prev => [...prev, {
       idUnico: `prod-${Date.now()}`, 
@@ -220,7 +218,7 @@ export function NuevaVentaForm() {
     if (!cliente) return alert("Selecciona un cliente");
     if (carrito.length === 0) return alert("Añade productos");
     if (carrito.some(p => !p.inventarioValidado)) return alert("Hay productos sin asignar stock.");
-    if (tipoPago === 'Transferencia' && !cuentaDestino.trim()) return alert("Ingresa el nombre de la cuenta destino.");
+    if (tipoPago === 'TRANSFERENCIA' && !cuentaDestino.trim()) return alert("Ingresa el nombre de la cuenta destino.");
 
     setIsSaving(true);
     const token = localStorage.getItem('sessionToken');
@@ -228,8 +226,8 @@ export function NuevaVentaForm() {
     const payload = {
       id_cliente: cliente.id_persona,
       fecha_salida: fecha,
-      tipo_pago: tipoPago,
-      cuenta_destino: tipoPago === 'Transferencia' ? cuentaDestino : null, 
+      tipo_pago: tipoPago, 
+      cuenta_destino: tipoPago === 'TRANSFERENCIA' ? cuentaDestino : null, 
       id_reembarque: reembarque?.id_reembarque, 
       id_vehiculo: vehiculo?.id_vehiculo,
       nombre_quien_expide: quienExpide,
@@ -284,19 +282,40 @@ export function NuevaVentaForm() {
         <div className="border rounded bg-white shadow-lg mx-auto p-2 mb-6 max-w-4xl overflow-auto h-[600px]">
            <NotaVentaImprimible datos={ventaGuardada} />
         </div>
-        <div className="mt-6 flex justify-center gap-4">
-          <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded flex items-center gap-2 shadow transition-colors">
-            <Printer size={20} /> Imprimir Nota
+        <div className="mt-6 flex flex-wrap justify-center gap-4">
+          {/* 👇 NUEVO BOTÓN: Imprimir Ticket (Abre el modal) 👇 */}
+          <button 
+            onClick={() => setIsTicketModalOpen(true)} 
+            className="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded flex items-center gap-2 shadow transition-colors"
+          >
+            <Receipt size={20} /> Imprimir Ticket (80mm)
           </button>
-          <button onClick={() => router.refresh()} className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-2 rounded border transition-colors">
+
+          <button 
+            onClick={() => window.print()} 
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded flex items-center gap-2 shadow transition-colors"
+          >
+            <Printer size={20} /> Imprimir Nota (A4)
+          </button>
+          
+          <button 
+            onClick={() => router.refresh()} 
+            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-2 rounded border transition-colors"
+          >
             Nueva Venta
           </button>
         </div>
+
+        {/* 👇 NUEVO MODAL: Componente del Ticket 👇 */}
+        <ImprimirTicketModal 
+          isOpen={isTicketModalOpen}
+          onClose={() => setIsTicketModalOpen(false)}
+          venta={ventaGuardada}
+        />
       </div>
     );
   }
 
-  // Usamos Fragment (<>) para envolver todo sin añadir nodos extra al DOM
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-8 pb-20 max-w-7xl mx-auto">
@@ -327,7 +346,7 @@ export function NuevaVentaForm() {
                                   inputValue={reembarqueQuery}
                                   onInputChange={(v) => { setReembarqueQuery(v); setReembarque(null); }}
                                   onSelect={(r) => { setReembarque(r); setReembarqueQuery(r.folio_progresivo); }}
-                                  onCreateNew={() => {}} // Reembarque no se crea desde aquí usualmente
+                                  onCreateNew={() => {}} 
                                   renderItem={renderReembarqueItem}
                               />
                           </div>
@@ -352,7 +371,6 @@ export function NuevaVentaForm() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Input de Cliente vinculado al Modal */}
             <SearchAndCreateInput<Cliente>
               label="Cliente"
               placeholder="Buscar cliente..."
@@ -361,10 +379,9 @@ export function NuevaVentaForm() {
               inputValue={clienteNombre}
               onInputChange={(v) => { setClienteNombre(v); setCliente(null); }}
               onSelect={(c) => { setCliente(c); setClienteNombre(c.nombre_completo); }}
-              onCreateNew={() => setIsClienteModalOpen(true)} // Abre el modal sin recargar
+              onCreateNew={() => setIsClienteModalOpen(true)} 
             />
             
-            {/* Input de Vehículo vinculado al Modal */}
             <SearchAndCreateInput<Vehiculo>
               label="Vehículo (Opcional)"
               placeholder="Buscar placas..."
@@ -373,14 +390,13 @@ export function NuevaVentaForm() {
               inputValue={vehiculoMatricula}
               onInputChange={(v) => { setVehiculoMatricula(v); setVehiculo(null); }}
               onSelect={(v) => { setVehiculo(v); setVehiculoMatricula(v.matricula); }}
-              onCreateNew={() => setIsVehiculoModalOpen(true)} // Abre el modal sin recargar
+              onCreateNew={() => setIsVehiculoModalOpen(true)} 
             />
           </div>
         </div>
 
         {/* 2. Productos */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
-          {/* ... (Cabecera de productos y fecha igual que antes) ... */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-gray-100 pb-6">
              <div>
                <h2 className="text-xl font-bold text-gray-800 mb-1">2. Productos y Pago</h2>
@@ -404,17 +420,17 @@ export function NuevaVentaForm() {
                    value={tipoPago}
                    onChange={e => setTipoPago(e.target.value)}
                  >
-                   <option>Efectivo</option>
-                   <option>Transferencia</option>
-                   <option>Tarjeta</option>
-                   <option>Cheque</option>
-                   <option>Crédito</option>
+                   <option value="EFECTIVO">Efectivo</option>
+                   <option value="TRANSFERENCIA">Transferencia</option>
+                   <option value="TARJETA">Tarjeta</option>
+                   <option value="CHEQUE">Cheque</option>
+                   <option value="CREDITO">Crédito</option>
                  </select>
                </div>
              </div>
           </div>
 
-          {tipoPago === 'Transferencia' && (
+          {tipoPago === 'TRANSFERENCIA' && (
             <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-center gap-4 animate-in fade-in slide-in-from-top-2">
               <div className="p-2 bg-blue-100 rounded-full text-blue-600">
                  <AlertCircle size={24} />
@@ -589,21 +605,16 @@ export function NuevaVentaForm() {
       </form>
 
       {/* --- MODALES FUERA DEL FORMULARIO PRINCIPAL --- */}
-      {/* Al estar aquí, sus botones no activarán el 'submit' del formulario de venta */}
-      
       <PersonaFormModal 
         isOpen={isClienteModalOpen}
         onClose={() => setIsClienteModalOpen(false)}
         onSaveSuccess={(c) => { 
-            // 1. Guardar los datos en el estado del formulario padre
             setCliente(c); 
             setClienteNombre(c.nombre_completo); 
-            // 2. Cerrar el modal
             setIsClienteModalOpen(false); 
         }}
       />
 
-      {/* Asumiendo que VehiculoFormModal sigue la misma estructura que PersonaFormModal */}
       {VehiculoFormModal && (
         <VehiculoFormModal 
           isOpen={isVehiculoModalOpen}

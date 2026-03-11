@@ -3,9 +3,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Printer, Search, Loader2, Calendar, XCircle , Trash2, Edit} from 'lucide-react';
+import { Plus, Printer, Search, Loader2, Calendar, XCircle , Trash2, Edit, Receipt} from 'lucide-react';
 import { ImprimirNotaModal } from '@/components/ventas/ImprimirNotaModal';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+
+import { ImprimirTicketModal } from '@/components/ventas/ImprimirTicketModal';
 
 
 // --- HELPER PARA FECHAS (Reutilizado para consistencia) ---
@@ -55,9 +57,13 @@ export default function VentasPage() {
   // Estado para el modal de impresión
   const [ventaParaImprimir, setVentaParaImprimir] = useState<any | null>(null);
 
+  const [ticketParaImprimir, setTicketParaImprimir] = useState<any | null>(null); 
+
   // --- NUEVO ESTADO PARA ELIMINAR ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  
 
   useEffect(() => {
     const fetchVentas = async () => {
@@ -251,6 +257,16 @@ export default function VentasPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center items-center gap-2">
+
+                          {/* BOTÓN TICKET (80mm) - NUEVO */}
+                          <button 
+                            onClick={() => setTicketParaImprimir(venta)}
+                            className="text-gray-400 hover:text-black transition-colors p-2 hover:bg-gray-100 rounded-full"
+                            title="Imprimir Ticket (80mm)"
+                          >
+                            <Receipt size={18} />
+                          </button>
+                          {/* BOTÓN NOTA (A4) */}
                           <button 
                             onClick={() => setVentaParaImprimir(venta)}
                             className="text-gray-400 hover:text-blue-600 transition-colors p-2 hover:bg-blue-50 rounded-full"
@@ -299,6 +315,14 @@ export default function VentasPage() {
           isOpen={!!ventaParaImprimir}
           onClose={() => setVentaParaImprimir(null)}
           venta={ventaParaImprimir}
+        />
+      )}
+      {/*  NUEVO MODAL DE IMPRESIÓN TICKET  */}
+      {ticketParaImprimir && (
+        <ImprimirTicketModal 
+          isOpen={!!ticketParaImprimir}
+          onClose={() => setTicketParaImprimir(null)}
+          venta={ticketParaImprimir}
         />
       )}
 
