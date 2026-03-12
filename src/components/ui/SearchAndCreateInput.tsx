@@ -1,3 +1,4 @@
+// src/components/ui/SearchAndCreateInput.tsx
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -41,7 +42,6 @@ export function SearchAndCreateInput<T = any>({
   const [localQuery, setLocalQuery] = useState<string>(incomingValue);
   
   // 2. Hook de Búsqueda (Lógica API)
-  // IMPORTANTE: Obtenemos 'setQuery' del hook para avisarle qué buscar
   const { results, isLoading, setQuery: setHookQuery, setResults } = useDebouncedSearch<T>(finalEndpoint);
 
   const [showResults, setShowResults] = useState(false);
@@ -49,7 +49,10 @@ export function SearchAndCreateInput<T = any>({
   
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Sincronizar cambios desde el padre (incomingValue) hacia el input local
+  // 👇 NUEVOS ESTADOS PARA DETECTAR EL LECTOR DE CÓDIGO DE BARRAS 👇
+  const [pendingAutoSelect, setPendingAutoSelect] = useState(false);
+
+  // Sincronizar cambios desde el padre
   useEffect(() => {
     setLocalQuery(incomingValue);
   }, [incomingValue]);
@@ -68,41 +71,91 @@ export function SearchAndCreateInput<T = any>({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [localQuery, onSelect]); 
 
+  // --- LÓGICA DE AUTO-SELECCIÓN (ESCÁNER) ---
+
+  // 1. Temporizador: Si presionamos Enter, le damos 1.5 segundos máximo a la API para responder
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (pendingAutoSelect) {
+      timeout = setTimeout(() => {
+        setPendingAutoSelect(false);
+      }, 1500); 
+    }
+    return () => clearTimeout(timeout);
+  }, [pendingAutoSelect]);
+
+  // 2. Ejecución: Si la API ya respondió (!isLoading) y estábamos esperando (pendingAutoSelect)
+  useEffect(() => {
+    if (pendingAutoSelect && !isLoading && results.length > 0) {
+      
+      if (results.length === 1) {
+        // CASO A: El escáner encontró un código único ¡Lo seleccionamos automático!
+        handleSelect(results[0]);
+        setPendingAutoSelect(false);
+      } else {
+        // CASO B: Encontró varios. Buscamos si alguno coincide EXACTAMENTE con lo que se escaneó
+        const queryStr = localQuery.toLowerCase().trim();
+        const exactMatch = results.find((item: any) => 
+          Object.values(item).some(val => val !== null && String(val).toLowerCase() === queryStr)
+        );
+        
+        if (exactMatch) {
+          handleSelect(exactMatch);
+        }
+        setPendingAutoSelect(false);
+      }
+    }
+  }, [isLoading, results, pendingAutoSelect, localQuery]);
+  // ------------------------------------------
+
   const handleSelect = (item: any) => {
     const text = item[displayField];
-    setLocalQuery(text);       // Actualiza UI
-    setHookQuery(text);        // Actualiza Hook (opcional, para mantener sync)
+    setLocalQuery(text);       
+    setHookQuery(text);        
     setSelectedItem(item);
     onSelect(item);
     setShowResults(false);
+    setPendingAutoSelect(false); // Reseteamos la bandera por si acaso
   };
 
   const handleLocalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     
-    // 1. Actualizar UI inmediatamente
     setLocalQuery(newValue); 
     setShowResults(true);
-    
-    // 2. Avisar al Hook para que inicie el debounce y la búsqueda
     setHookQuery(newValue);
+    setPendingAutoSelect(false); // Si el usuario está tecleando, cancelamos cualquier auto-selección pendiente
 
-    // 3. Avisar al padre y limpiar selección previa
     if (onInputChange) onInputChange(newValue);
     if (selectedItem) setSelectedItem(null); 
   };
 
   const handleClear = () => {
     setLocalQuery('');
-    setHookQuery(''); // Limpia búsqueda en el hook
-    setResults([]);   // Limpia resultados
+    setHookQuery(''); 
+    setResults([]);   
     if(onInputChange) onInputChange('');
     setSelectedItem(null);
   };
 
+  // Detectamos cuando la pistola de código de barras presiona el Enter
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Evitamos que la página se recargue
+      
+      // Si ya teníamos los resultados listos y es único, lo seleccionamos al instante
+      if (results.length === 1 && !isLoading) {
+         handleSelect(results[0]);
+      } else {
+         // Si la base de datos aún está buscando, encendemos la bandera de espera
+         setPendingAutoSelect(true);
+      }
+    }
+  };
+
   return (
     <div className="relative mb-4 w-full" ref={wrapperRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
       <div className="relative">
         <input
           type="text"
@@ -110,9 +163,9 @@ export function SearchAndCreateInput<T = any>({
           placeholder={placeholder || 'Buscar...'}
           value={localQuery} 
           onChange={handleLocalInputChange}
+          onKeyDown={handleKeyDown} // 👇 AÑADIDO EL DETECTOR DE TECLAS
           onFocus={() => {
             setShowResults(true);
-            // Si ya hay texto, aseguramos que el hook tenga el query para buscar si estaba limpio
             if(localQuery) setHookQuery(localQuery);
           }}
         />

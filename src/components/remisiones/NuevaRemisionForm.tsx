@@ -156,7 +156,26 @@ export function NuevaRemisionForm({ onSaveSuccess }: NuevaRemisionFormProps) {
         <FormSection title="3. Información del Producto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input label="Descripción Producto" name="descripcion_producto_remision" value={formData.descripcion_producto_remision} onChange={(e) => setFormData(prev => ({...prev, descripcion_producto_remision: e.target.value}))} />
-            <Input label="Género Madera" name="genero_madera" value={formData.genero_madera} onChange={(e) => setFormData(prev => ({...prev, genero_madera: e.target.value}))} />
+            
+            {/* 👇 AQUÍ ESTÁ EL CAMBIO A SELECT PARA LA REMISIÓN 👇 */}
+            <div className="w-full">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Género Madera</label>
+              <select 
+                name="genero_madera" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" 
+                value={formData.genero_madera} 
+                onChange={(e) => setFormData(prev => ({...prev, genero_madera: e.target.value}))}
+              >
+                <option value="Pino">Pino</option>
+                <option value="Oyamel">Oyamel</option>
+                <option value="Nogal">Nogal</option>
+                <option value="Ayacahuite">Ayacahuite</option>
+                <option value="Cedro">Cedro</option>
+                <option value="Roble">Roble</option>
+                <option value="Parota">Parota</option>
+              </select>
+            </div>
+
             <Input label="Volumen Total (m³)" name="volumen_total_m3" type="number" step="0.01" value={formData.volumen_total_m3} onChange={(e) => setFormData(prev => ({...prev, volumen_total_m3: parseFloat(e.target.value) || 0}))} />
           </div>
         </FormSection>

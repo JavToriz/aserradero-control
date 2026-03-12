@@ -157,9 +157,23 @@ export function NuevoReembarqueForm({ onSaveSuccess }: NuevoReembarqueFormProps)
               <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
               <input className="w-full border rounded-lg px-3 py-2" value={formData.descripcion_producto_reembarque} onChange={(e) => setFormData(p => ({...p, descripcion_producto_reembarque: e.target.value}))} />
             </div>
+            
+            {/* 👇 AQUÍ ESTÁ EL CAMBIO A SELECT 👇 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
-              <input className="w-full border rounded-lg px-3 py-2" value={formData.genero_madera} onChange={(e) => setFormData(p => ({...p, genero_madera: e.target.value}))} />
+              <select 
+                className="w-full border rounded-lg px-3 py-2 bg-white focus:ring-blue-500 focus:border-blue-500" 
+                value={formData.genero_madera} 
+                onChange={(e) => setFormData(p => ({...p, genero_madera: e.target.value}))}
+              >
+                <option value="Pino">Pino</option>
+                <option value="Oyamel">Oyamel</option>
+                <option value="Nogal">Nogal</option>
+                <option value="Ayacahuite">Ayacahuite</option>
+                <option value="Cedro">Cedro</option>
+                <option value="Roble">Roble</option>
+                <option value="Parota">Parota</option>
+              </select>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">

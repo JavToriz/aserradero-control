@@ -8,7 +8,6 @@ import { VehiculoFormModal } from '@/components/vehiculos/VehiculoFormModal';
 import { SeleccionarInventarioModal } from './SeleccionarInventarioModal';
 import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box, Barcode, Receipt } from 'lucide-react'; 
 import { NotaVentaImprimible } from './NotaVentaImprimible'; 
-// 👇 NUEVO: Importamos el Modal del Ticket
 import { ImprimirTicketModal } from '@/components/ventas/ImprimirTicketModal';
 
 // Tipos
@@ -73,8 +72,6 @@ export function NuevaVentaForm() {
   const [isClienteModalOpen, setIsClienteModalOpen] = useState(false);
   const [isVehiculoModalOpen, setIsVehiculoModalOpen] = useState(false); 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
-  
-  // 👇 NUEVO: Estado para controlar el modal del Ticket
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [productoParaStock, setProductoParaStock] = useState<{idUnico: string, producto: any, cantidad: number} | null>(null);
@@ -213,6 +210,17 @@ export function NuevaVentaForm() {
 
   const totalVenta = carrito.reduce((acc, item) => acc + (item.cantidad * item.precioUnitario), 0);
 
+  // 👇 NUEVO: Interceptamos el "Enter" del lector de barras
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key === 'Enter') {
+      const target = e.target as HTMLElement;
+      // Prevenir que se envíe el formulario, A MENOS que estén enfocando un botón explícitamente o un textarea
+      if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cliente) return alert("Selecciona un cliente");
@@ -283,7 +291,6 @@ export function NuevaVentaForm() {
            <NotaVentaImprimible datos={ventaGuardada} />
         </div>
         <div className="mt-6 flex flex-wrap justify-center gap-4">
-          {/* 👇 NUEVO BOTÓN: Imprimir Ticket (Abre el modal) 👇 */}
           <button 
             onClick={() => setIsTicketModalOpen(true)} 
             className="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded flex items-center gap-2 shadow transition-colors"
@@ -306,7 +313,6 @@ export function NuevaVentaForm() {
           </button>
         </div>
 
-        {/* 👇 NUEVO MODAL: Componente del Ticket 👇 */}
         <ImprimirTicketModal 
           isOpen={isTicketModalOpen}
           onClose={() => setIsTicketModalOpen(false)}
@@ -318,7 +324,8 @@ export function NuevaVentaForm() {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-8 pb-20 max-w-7xl mx-auto">
+      {/* 👇 NUEVO: onKeyDown={handleKeyDown} agregado al form 👇 */}
+      <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="space-y-8 pb-20 max-w-7xl mx-auto">
         
         {/* 1. Datos Generales (Cliente y Vehículo) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">

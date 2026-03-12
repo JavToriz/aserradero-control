@@ -29,6 +29,7 @@ export function VistaCajaCerrada({ onCajaAbierta }: { onCajaAbierta: () => void 
         const err = await res.json();
         throw new Error(err.error);
       }
+      window.dispatchEvent(new Event('caja-actualizada'));
       onCajaAbierta();
     } catch (err: any) {
       setServerError(err.message);

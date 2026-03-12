@@ -38,6 +38,7 @@ export function ModalCierreCaja({ saldoSistema, onClose, onSuccess }: Props) {
         }),
       });
       if (res.ok) {
+        window.dispatchEvent(new Event('caja-actualizada'));
         onSuccess();
         onClose();
       }

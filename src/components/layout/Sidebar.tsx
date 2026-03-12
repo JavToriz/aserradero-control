@@ -7,7 +7,7 @@ import {
   Menu, X, ChevronLeft, ChevronRight, ChevronDown, Check, Loader2,
   Package, CircleDollarSign, FileText, ShoppingCart, 
   Layers, Boxes, Receipt, FolderOpen 
-} from 'lucide-react'; // Agregué FolderOpen y ChevronDown
+} from 'lucide-react'; 
 import LogoutButton from '../ui/LogoutButton';
 import { CajaStatusBadge } from '../caja/CajaStatusBadge';
 import { supabase } from '@/lib/supabase';
@@ -39,18 +39,14 @@ const menuItems = [
   { name: 'Precios', href: '/configuracion/precios', icon: CircleDollarSign },
   { name: 'Inventario / Madera', href: '/produccion', icon: Boxes },
   { name: 'Inventario / Productos', href: '/inventario-comercial', icon: Layers },
-  
-  // --- AQUÍ ESTÁ TU NUEVO GRUPO ---
   { 
     name: 'Documentos', 
     icon: FolderOpen, 
-    // href lo dejamos vacío o null porque es un contenedor
     submenu: [
       { name: 'Remisiones', href: '/remisiones' },
       { name: 'Reembarques', href: '/reembarques' },
     ]
   },
-  // ---------------------------------
   { name: 'Ventas', href: '/ventas', icon: ShoppingCart },
   { name: 'Gastos', href: '/gastos', icon: Receipt },
   { name: 'Reportes', href: '/reportes/semarnat', icon: FileText }
@@ -71,6 +67,24 @@ export function Sidebar() {
   const [aserraderos, setAserraderos] = useState<any[]>([]);
   const [loadingAserraderos, setLoadingAserraderos] = useState(true);
   const [selectingId, setSelectingId] = useState<number | null>(null);
+
+  // 👇 NUEVO: Estado para forzar la recarga del componente CajaStatusBadge 👇
+  const [cajaUpdateKey, setCajaUpdateKey] = useState(0);
+
+  // 👇 NUEVO: Efecto que escucha el evento de abrir/cerrar caja 👇
+  useEffect(() => {
+    const handleCajaUpdate = () => {
+      // Al sumar 1, forzamos a React a desmontar y montar el badge de nuevo,
+      // lo que hace que vuelva a pedir su estado a la API.
+      setCajaUpdateKey(prev => prev + 1);
+    };
+
+    window.addEventListener('caja-actualizada', handleCajaUpdate);
+    
+    return () => {
+      window.removeEventListener('caja-actualizada', handleCajaUpdate);
+    };
+  }, []);
 
   // Cargar aserraderos al montar
   useEffect(() => {
@@ -135,7 +149,6 @@ export function Sidebar() {
       setSelectedAserradero({ id: id_aserradero, name: nombre });
       setIsProfileMenuOpen(false);
       
-      // Recargar completamente la página para forzar que toda la app use el nuevo token y actualice su estado
       window.location.reload(); 
     } catch (err: any) {
       alert(err.message || 'Error al cambiar de sucursal');
@@ -155,17 +168,12 @@ export function Sidebar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Estado para controlar qué menús están abiertos
-  // Iniciamos vacío, pero podríamos checar la URL para abrir el correcto al inicio
   const [openSubmenus, setOpenSubmenus] = useState<string[]>([]);
-  
   const isCajaActive = pathname === '/caja' || pathname.startsWith('/caja');
 
-  // EFECTO: Abrir automáticamente el menú si estoy en una ruta hija al cargar la página
   useEffect(() => {
     menuItems.forEach(item => {
       if (item.submenu) {
-        // Si alguna de las hijas es la ruta actual
         const isChildActive = item.submenu.some(sub => pathname.startsWith(sub.href));
         if (isChildActive) {
           setOpenSubmenus(prev => [...prev, item.name]);
@@ -174,22 +182,18 @@ export function Sidebar() {
     });
   }, [pathname]);
 
-  // FUNCIÓN: Manejar el click en un grupo (Padre)
   const handleGroupClick = (itemName: string) => {
-    // 1. Si está colapsado, lo abrimos para que el usuario vea qué pasa
     if (isCollapsed) setIsCollapsed(false);
-
-    // 2. Toggle del acordeón
     setOpenSubmenus(prev => 
       prev.includes(itemName) 
-        ? prev.filter(name => name !== itemName) // Cerrar
-        : [...prev, itemName] // Abrir
+        ? prev.filter(name => name !== itemName) 
+        : [...prev, itemName] 
     );
   };
 
   return (
     <>
-      {/* --- MOBILE TOGGLES (Igual que antes) --- */}
+      {/* --- MOBILE TOGGLES --- */}
       <button
         onClick={() => setIsMobileOpen(true)}
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow-md border border-gray-200 text-gray-700 hover:bg-gray-100"
@@ -248,7 +252,6 @@ export function Sidebar() {
                 <X className="w-5 h-5 text-gray-500" />
               </button>
 
-              {/* Menú Desplegable de Perfiles */}
               {isProfileMenuOpen && (
                 <div className="absolute top-full left-0 mt-1 w-[calc(100%+0.5rem)] min-w-[220px] bg-white border border-gray-200 rounded-lg shadow-xl py-1 z-[60]">
                   <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -300,37 +303,34 @@ export function Sidebar() {
         {/* NAV */}
         <nav className="flex-1 p-2 overflow-y-auto overflow-x-hidden custom-scrollbar">
           
-          <CajaStatusBadge isCollapsed={isCollapsed} isActive={isCajaActive} onClick={() => setIsMobileOpen(false)} />
+          {/* 👇 AQUÍ APLICAMOS EL TRUCO DEL KEY 👇 */}
+          <CajaStatusBadge 
+            key={cajaUpdateKey} 
+            isCollapsed={isCollapsed} 
+            isActive={isCajaActive} 
+            onClick={() => setIsMobileOpen(false)} 
+          />
 
           <ul className="space-y-1">
             {menuItems.map((item) => {
-              
-              // LÓGICA: ¿Es un item simple o un grupo?
               const isGroup = !!item.submenu;
               
-              // Estado Activo
-              // Si es grupo: activo si alguna hija coincide. Si es simple: activo si href coincide.
               const isActive = isGroup 
                 ? item.submenu.some(sub => pathname.startsWith(sub.href))
                 : pathname === item.href || (pathname.startsWith(item.href || '') && item.href !== '/');
               
-              // Estado Abierto (Solo para grupos)
               const isOpen = openSubmenus.includes(item.name);
 
-              // ------------------------------------------
-              // RENDERIZADO SI ES UN GRUPO (DOCUMENTOS)
-              // ------------------------------------------
               if (isGroup) {
                 return (
                   <li key={item.name}>
-                    {/* Botón Padre */}
                     <button
                       onClick={() => handleGroupClick(item.name)}
                       className={`
                         w-full flex items-center px-2 py-3 rounded-md transition-colors group relative
                         ${isCollapsed ? 'justify-center' : 'justify-between'}
                         ${isActive 
-                          ? 'bg-blue-50 text-blue-700' // Estilo activo del padre
+                          ? 'bg-blue-50 text-blue-700' 
                           : 'text-gray-600 hover:bg-gray-100'
                         }
                       `}
@@ -342,14 +342,12 @@ export function Sidebar() {
                          </span>
                       </div>
                       
-                      {/* Flechita (Solo visible si no está colapsado) */}
                       {!isCollapsed && (
                         <ChevronDown 
                           className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
                         />
                       )}
 
-                      {/* Tooltip Padre (Colapsado) */}
                       {isCollapsed && (
                          <div className="hidden md:block absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap shadow-lg">
                            {item.name}
@@ -357,8 +355,6 @@ export function Sidebar() {
                       )}
                     </button>
 
-                    {/* Hijos (Submenú) */}
-                    {/* Renderizamos solo si está abierto Y el sidebar NO está colapsado (o si está colapsado pero lo expandimos en el click) */}
                     <div className={`
                       overflow-hidden transition-all duration-300 ease-in-out
                       ${isOpen && !isCollapsed ? 'max-h-40 opacity-100 mt-1' : 'max-h-0 opacity-0'}
@@ -390,9 +386,6 @@ export function Sidebar() {
                 );
               }
 
-              // ------------------------------------------
-              // RENDERIZADO SI ES ITEM SIMPLE (NORMAL)
-              // ------------------------------------------
               return (
                 <li key={item.name}>
                   <Link

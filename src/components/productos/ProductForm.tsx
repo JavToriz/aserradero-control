@@ -349,7 +349,7 @@ export const ProductForm = ({ productType, initialData, onSave, onCancel }: Prod
           </div>
 
           <div className="col-span-1">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Código de Barras</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Código de Barras (Opcional)</label>
             <input 
               {...register("codigo_barras")} 
               placeholder="Escanea o escribe EAN"
@@ -365,7 +365,7 @@ export const ProductForm = ({ productType, initialData, onSave, onCancel }: Prod
 
           {/* 👇 NUEVO CAMPO: CLAVE SAT 👇 */}
           <div className="col-span-1">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Clave SAT</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Clave SAT (Opcional)</label>
             <input 
               {...register("clave_sat")} 
               placeholder="Ej. 11121600"
