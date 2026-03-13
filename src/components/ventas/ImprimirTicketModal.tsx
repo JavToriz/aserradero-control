@@ -61,10 +61,13 @@ export const ImprimirTicketModal = ({ isOpen, onClose, venta }: ImprimirTicketMo
     }
   }, [isOpen]);
 
-  // --- LÓGICA DE IMPRESIÓN ---
+  // --- LÓGICA DE IMPRESIÓN (NIVEL MÁXIMO DE LIMPIEZA) ---
   const handlePrint = useReactToPrint({
     contentRef: ticketRef,
-    documentTitle: `Ticket_${venta?.folio_nota || 'Venta'}`,
+    // 👇 TRUCO 1: Título en blanco. Evita que el driver genérico de Mac 
+    // intente leer el nombre del archivo y escupa basura hexadecimal en Safari/Chrome.
+    documentTitle: '', 
+    removeAfterPrint: true,
   });
 
   if (!isOpen || !venta) return null;
@@ -102,15 +105,30 @@ export const ImprimirTicketModal = ({ isOpen, onClose, venta }: ImprimirTicketMo
             /* 👇 ESTE ES EL TICKET REAL QUE SE IMPRIMIRÁ 👇 */
             <div 
                 ref={ticketRef} 
-                className="bg-white text-black p-4 shadow-sm"
-                // Forzamos el ancho a 80mm para la previsualización y la impresión
-                style={{ width: '80mm', minHeight: '100mm', margin: '0 auto', fontFamily: 'monospace' }}
+                className="bg-white text-black text-left"
+                style={{ width: '78mm', padding: '2mm', minHeight: '100mm', margin: '0 auto', fontFamily: 'monospace' }}
             >
-                {/* CSS mágico para la impresora térmica */}
+                {/* CSS MÁGICO MULTI-NAVEGADOR (NIVEL MÁXIMO) */}
                 <style type="text/css" media="print">
                 {`
-                    @page { size: 80mm auto; margin: 0; }
-                    body { margin: 0; padding: 0; font-family: sans-serif; }
+                    @page { 
+                        /* Quitamos el 'size' para que Safari no se pelee con el Driver */
+                        margin: 0px !important; 
+                        padding: 0px !important;
+                    }
+                    html, body { 
+                        margin: 0px !important; 
+                        padding: 0px !important; 
+                        background: white !important;
+                    }
+                    /* Forzamos la desaparición de cualquier encabezado inyectado por el navegador */
+                    header, footer { 
+                        display: none !important; 
+                    }
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
                 `}
                 </style>
 
