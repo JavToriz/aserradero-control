@@ -263,7 +263,7 @@ export default function ProductsPage() {
                                 className="w-20 h-9 text-right font-bold text-blue-700 bg-white border-blue-300 shadow-inner focus-visible:ring-blue-500"
                             />
                         </div>
-                        
+                      
                         <Button 
                             onClick={() => setShowBulkConfirmModal(true)}
                             disabled={isBulkSaving || filteredProducts.length === 0}
@@ -272,6 +272,7 @@ export default function ProductsPage() {
                             {isBulkSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCheck className="h-4 w-4 mr-2" />}
                             Aplicar a los {filteredProducts.length} filtrados
                         </Button>
+                        
                     </div>
                  )}
               </div>

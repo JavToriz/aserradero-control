@@ -148,13 +148,17 @@ export function NuevaVentaForm() {
             : Number(p.precio_venta);
             
           nuevoItem.precioUnitario = precioBase;
-          nuevoItem.inventarioValidado = false;
-          nuevoItem.origenes = [];
+          nuevoItem.inventarioValidado = p.tipo_categoria === 'TRIPLAY_AGLOMERADO';
+          nuevoItem.origenes = []; 
         }
 
         if (campo === 'cantidad') {
-          nuevoItem.inventarioValidado = false;
-          nuevoItem.origenes = [];
+          if (item.producto?.tipo_categoria === 'TRIPLAY_AGLOMERADO') {
+            nuevoItem.inventarioValidado = true;
+          } else {
+            nuevoItem.inventarioValidado = false;
+            nuevoItem.origenes = [];
+          }
         }
         return nuevoItem;
       }
@@ -208,7 +212,9 @@ export function NuevaVentaForm() {
     setMostrarReembarque(false);
   };
 
-  const totalVenta = carrito.reduce((acc, item) => acc + (item.cantidad * item.precioUnitario), 0);
+  const subtotal = carrito.reduce((acc, item) => acc + (item.cantidad * item.precioUnitario), 0);
+  const totalIVA = carrito.reduce((acc, item) => item.producto?.tipo_categoria === 'TRIPLAY_AGLOMERADO' ? acc + (item.cantidad * item.precioUnitario * 0.16) : acc, 0);
+  const totalVenta = subtotal + totalIVA;
 
   // 👇 NUEVO: Interceptamos el "Enter" del lector de barras
   const handleKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
@@ -240,12 +246,14 @@ export function NuevaVentaForm() {
       id_vehiculo: vehiculo?.id_vehiculo,
       nombre_quien_expide: quienExpide,
       total_venta: totalVenta,
+      impuestos: totalIVA,
       productos_venta: carrito.map(p => ({
         id_producto_catalogo: p.producto!.id_producto_catalogo,
         cantidad_total: p.cantidad,
         precio_unitario: p.precioUnitario,
         importe: p.cantidad * p.precioUnitario,
-        origenes: p.origenes
+        origenes: p.origenes,
+        es_triplay: p.producto!.tipo_categoria === 'TRIPLAY_AGLOMERADO'
       }))
     };
 
@@ -263,6 +271,7 @@ export function NuevaVentaForm() {
         ...data,
         cliente,
         vehiculo,
+        impuestos: totalIVA,
         detalles: carrito.map(p => ({
           producto: p.producto,
           cantidad: p.cantidad,
@@ -544,17 +553,23 @@ export function NuevaVentaForm() {
                       ${(item.cantidad * item.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3 text-center align-middle">
-                      <button
-                        type="button"
-                        onClick={() => abrirModalStock(item)}
-                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors w-full flex items-center justify-center gap-1 ${
-                          item.inventarioValidado 
-                            ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
-                            : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
-                        }`}
-                      >
-                        {item.inventarioValidado ? 'Listo' : 'Asignar'}
-                      </button>
+                      {item.producto?.tipo_categoria === 'TRIPLAY_AGLOMERADO' ? (
+                        <span className="px-3 py-2 rounded-lg text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 w-full flex items-center justify-center gap-1">
+                          Bodega
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => abrirModalStock(item)}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors w-full flex items-center justify-center gap-1 ${
+                            item.inventarioValidado 
+                              ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
+                              : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                          }`}
+                        >
+                          {item.inventarioValidado ? 'Listo' : 'Asignar'}
+                        </button>
+                      )}
                     </td>
                     <td className="px-2 py-3 text-center align-middle">
                       <button 
@@ -581,7 +596,17 @@ export function NuevaVentaForm() {
 
           <div className="flex justify-end border-t border-gray-100 pt-6">
             <div className="w-64 space-y-2">
-              <div className="flex justify-between items-center text-xl font-bold text-gray-800">
+              <div className="flex justify-between items-center text-gray-600 font-medium">
+                <span>SUBTOTAL</span>
+                <span>${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+              </div>
+              {totalIVA > 0 && (
+                <div className="flex justify-between items-center text-purple-600 font-medium tracking-tight">
+                  <span>IVA (16%)</span>
+                  <span>${totalIVA.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-xl font-bold text-gray-800 border-t pt-2">
                 <span>TOTAL</span>
                 <span>${totalVenta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
               </div>

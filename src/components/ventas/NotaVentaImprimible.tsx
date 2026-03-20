@@ -176,14 +176,14 @@ export const NotaVentaImprimible = ({ datos, empresa }: NotaProps) => {
           ))}
         </tbody>
         <tfoot>
-          <tr>
-            <td colSpan={4} style={{ border: '1px solid #000', padding: '4px', verticalAlign: 'top' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '8px' }}>IMPORTE CON LETRA:</span><br/>
-              <span style={{ fontSize: '9px', textTransform: 'uppercase' }}>{numeroALetras(Number(datos.total_venta))}</span>
-            </td>
-            <td style={{ border: '1px solid #000', padding: '4px', fontWeight: 'bold', textAlign: 'right', backgroundColor: '#f3f4f6', fontSize: '9px' }}>TOTAL</td>
-            <td style={{ border: '1px solid #000', padding: '4px', fontWeight: 'bold', textAlign: 'right', fontSize: '12px' }}>${Number(datos.total_venta).toFixed(2)}</td>
-          </tr>
+            <tr>
+              <td colSpan={4} style={{ border: '1px solid #000', padding: '4px', verticalAlign: 'top' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '8px' }}>IMPORTE CON LETRA:</span><br/>
+                <span style={{ fontSize: '9px', textTransform: 'uppercase' }}>{numeroALetras(Number(datos.total_venta))}</span>
+              </td>
+              <td style={{ border: '1px solid #000', padding: '4px', fontWeight: 'bold', textAlign: 'right', backgroundColor: '#f3f4f6', fontSize: '9px' }}>TOTAL</td>
+              <td style={{ border: '1px solid #000', padding: '4px', fontWeight: 'bold', textAlign: 'right', fontSize: '12px' }}>${Number(datos.total_venta).toFixed(2)}</td>
+            </tr>
         </tfoot>
       </table>
 

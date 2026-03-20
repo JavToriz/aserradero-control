@@ -101,7 +101,13 @@ export const ProductTable = ({
                             <>
                                 {type === 'triplay' && <th scope="col" className="px-6 py-3 text-right">Costo</th>}
                                 <th scope="col" className="px-6 py-3 text-right text-blue-700">Precio Venta</th>
-                                {type === 'triplay' && <th scope="col" className="px-6 py-3 text-right">Margen %</th>}
+                                {type === 'triplay' && (
+                                    <>
+                                        <th scope="col" className="px-6 py-3 text-right text-purple-700">IVA (16%)</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-green-700">Precio c/IVA</th>
+                                        <th scope="col" className="px-6 py-3 text-right">Margen %</th>
+                                    </>
+                                )}
                             </>
                         )}
                         <th scope="col" className="px-6 py-3 text-center">Acciones</th>
@@ -171,9 +177,13 @@ export const ProductTable = ({
                                         {type === 'triplay' && <td className="px-6 py-4 text-right font-mono text-gray-500">${costo.toFixed(2)}</td>}
                                         <td className="px-6 py-4 text-right font-mono font-bold text-blue-700">${precioActual.toFixed(2)}</td>
                                         {type === 'triplay' && (
-                                            <td className={`px-6 py-4 text-right ${getMarginStyle(precioActual, costo)}`}>
-                                                {calculateMarkup(precioActual, costo)} {/* <-- Función corregida */}
-                                            </td>
+                                            <>
+                                                <td className="px-6 py-4 text-right font-mono text-purple-700">${(precioActual * 0.16).toFixed(2)}</td>
+                                                <td className="px-6 py-4 text-right font-mono font-bold text-green-700">${(precioActual * 1.16).toFixed(2)}</td>
+                                                <td className={`px-6 py-4 text-right ${getMarginStyle(precioActual, costo)}`}>
+                                                    {calculateMarkup(precioActual, costo)} {/* <-- Función corregida */}
+                                                </td>
+                                            </>
                                         )}
                                     </>
                                 )}

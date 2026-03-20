@@ -88,6 +88,7 @@ export async function POST(req: Request) {
       id_reembarque,
       productos_venta,
       total_venta,
+      impuestos,
       id_vehiculo,
       // nombre_quien_expide, // No se usa en la lógica actual, pero viene del body
     } = body;
@@ -141,6 +142,7 @@ export async function POST(req: Request) {
             fecha_salida: fechaISO,
             id_cliente,
             total_venta,
+            impuestos: impuestos || 0,
             tipo_pago,
             cuenta_destino_transferencia:
               tipo_pago === 'Transferencia' ? cuenta_destino : null,
@@ -177,8 +179,31 @@ export async function POST(req: Request) {
             },
           });
 
+          // Auto-asignación de lote BODEGA para TRIPLAY
+          let origenesReales = item.origenes;
+          if (item.es_triplay && (!item.origenes || item.origenes.length === 0)) {
+            let cantidadRestante = item.cantidad_total;
+            const stocksDisponibles = await tx.stockProductoTerminado.findMany({
+               where: { id_producto_catalogo: item.id_producto_catalogo, id_aserradero, ubicacion: 'BODEGA', piezas_actuales: { gt: 0 } },
+               orderBy: { fecha_ingreso: 'asc' }
+            });
+            
+            let nuevosOrigenes = [];
+            for (const stock of stocksDisponibles) {
+               if (cantidadRestante <= 0) break;
+               const aTomar = Math.min(stock.piezas_actuales, cantidadRestante);
+               nuevosOrigenes.push({ id_stock: stock.id_stock, cantidad: aTomar });
+               cantidadRestante -= aTomar;
+            }
+            
+            if (cantidadRestante > 0) {
+               throw new Error(`Inventario insuficiente en BODEGA para el producto de Triplay (${item.id_producto_catalogo}). Faltan ${cantidadRestante} piezas.`);
+            }
+            origenesReales = nuevosOrigenes;
+          }
+
           // Descontar de cada lote (origen)
-          for (const origen of item.origenes) {
+          for (const origen of origenesReales) {
             const stockLote = await tx.stockProductoTerminado.findUnique({
               where: { id_stock: origen.id_stock },
             });

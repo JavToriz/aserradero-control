@@ -207,7 +207,7 @@ export const ImprimirTicketModal = ({ isOpen, onClose, venta }: ImprimirTicketMo
                             <div className="flex justify-between text-[11px] text-gray-700">
                                 <span className="w-8">{detalle.cantidad_piezas || detalle.cantidad} x</span>
                                 <span className="flex-1 px-1">${Number(detalle.precio_unitario || detalle.precio_unitario_venta).toFixed(2)}</span>
-                                <span className="w-16 text-right font-bold text-black">${Number(detalle.importe_linea || detalle.subtotal).toFixed(2)}</span>
+                                <span className="w-16 text-right font-bold text-black">${Number(detalle.importe_linea || detalle.importe || detalle.subtotal || 0).toFixed(2)}</span>
                             </div>
                         </div>
                     );
@@ -220,9 +220,14 @@ export const ImprimirTicketModal = ({ isOpen, onClose, venta }: ImprimirTicketMo
                 <div className="text-[14px] flex flex-col items-end mb-6 space-y-1">
                     <div className="flex justify-between w-full">
                         <span>SUBTOTAL:</span>
-                        <span>${Number(venta.total_venta).toFixed(2)}</span>
+                        <span>${(Number(venta.total_venta) - Number(venta.impuestos || 0)).toFixed(2)}</span>
                     </div>
-                    {/* Espacio para IVA si en el futuro decides agregarlo */}
+                    {Number(venta.impuestos) > 0 && (
+                        <div className="flex justify-between w-full">
+                            <span>IVA (16%):</span>
+                            <span>${Number(venta.impuestos).toFixed(2)}</span>
+                        </div>
+                    )}
                     <div className="flex justify-between w-full font-bold text-[16px] mt-1 border-t border-black pt-1">
                         <span>TOTAL:</span>
                         <span>${Number(venta.total_venta).toFixed(2)}</span>
