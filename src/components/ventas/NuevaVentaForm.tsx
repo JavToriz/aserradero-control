@@ -9,6 +9,7 @@ import { SeleccionarInventarioModal } from './SeleccionarInventarioModal';
 import { Save, Plus, Trash2, Printer, Link as LinkIcon, AlertCircle, X, Box, Barcode, Receipt } from 'lucide-react'; 
 import { NotaVentaImprimible } from './NotaVentaImprimible'; 
 import { ImprimirTicketModal } from '@/components/ventas/ImprimirTicketModal';
+import { ImprimirTicketMaderaModal } from '@/components/ventas/ImprimirTicketMaderaModal';
 
 // Tipos
 type Cliente = { id_persona: number; nombre_completo: string; [key: string]: any };
@@ -73,6 +74,7 @@ export function NuevaVentaForm() {
   const [isVehiculoModalOpen, setIsVehiculoModalOpen] = useState(false); 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [isTicketMaderaModalOpen, setIsTicketMaderaModalOpen] = useState(false);
   
   const [productoParaStock, setProductoParaStock] = useState<{idUnico: string, producto: any, cantidad: number} | null>(null);
   const [ventaGuardada, setVentaGuardada] = useState<any | null>(null);
@@ -301,7 +303,14 @@ export function NuevaVentaForm() {
         </div>
         <div className="mt-6 flex flex-wrap justify-center gap-4">
           <button 
-            onClick={() => setIsTicketModalOpen(true)} 
+            onClick={() => {
+              const hasMadera = ventaGuardada.detalles?.some((d: any) => d.producto?.tipo_categoria === 'MADERA_ASERRADA');
+              if (hasMadera) {
+                setIsTicketMaderaModalOpen(true);
+              } else {
+                setIsTicketModalOpen(true);
+              }
+            }} 
             className="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded flex items-center gap-2 shadow transition-colors"
           >
             <Receipt size={20} /> Imprimir Ticket (80mm)
@@ -325,6 +334,12 @@ export function NuevaVentaForm() {
         <ImprimirTicketModal 
           isOpen={isTicketModalOpen}
           onClose={() => setIsTicketModalOpen(false)}
+          venta={ventaGuardada}
+        />
+
+        <ImprimirTicketMaderaModal 
+          isOpen={isTicketMaderaModalOpen}
+          onClose={() => setIsTicketMaderaModalOpen(false)}
           venta={ventaGuardada}
         />
       </div>

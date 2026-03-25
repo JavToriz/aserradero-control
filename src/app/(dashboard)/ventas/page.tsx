@@ -6,9 +6,8 @@ import Link from 'next/link';
 import { Plus, Printer, Search, Loader2, Calendar, XCircle , Trash2, Edit, Receipt} from 'lucide-react';
 import { ImprimirNotaModal } from '@/components/ventas/ImprimirNotaModal';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-
 import { ImprimirTicketModal } from '@/components/ventas/ImprimirTicketModal';
-
+import { ImprimirTicketMaderaModal } from '@/components/ventas/ImprimirTicketMaderaModal';
 
 // --- HELPER PARA FECHAS (Reutilizado para consistencia) ---
 const isDateInRange = (dateString: string, filter: string): boolean => {
@@ -58,6 +57,7 @@ export default function VentasPage() {
   const [ventaParaImprimir, setVentaParaImprimir] = useState<any | null>(null);
 
   const [ticketParaImprimir, setTicketParaImprimir] = useState<any | null>(null); 
+  const [ticketMaderaParaImprimir, setTicketMaderaParaImprimir] = useState<any | null>(null);
 
   // --- NUEVO ESTADO PARA ELIMINAR ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any | null>(null);
@@ -260,7 +260,14 @@ export default function VentasPage() {
 
                           {/* BOTÓN TICKET (80mm) - NUEVO */}
                           <button 
-                            onClick={() => setTicketParaImprimir(venta)}
+                            onClick={() => {
+                              const hasMadera = venta.detalles?.some((d: any) => d.producto?.tipo_categoria === 'MADERA_ASERRADA');
+                              if (hasMadera) {
+                                setTicketMaderaParaImprimir(venta);
+                              } else {
+                                setTicketParaImprimir(venta);
+                              }
+                            }}
                             className="text-gray-400 hover:text-black transition-colors p-2 hover:bg-gray-100 rounded-full"
                             title="Imprimir Ticket (80mm)"
                           >
@@ -323,6 +330,13 @@ export default function VentasPage() {
           isOpen={!!ticketParaImprimir}
           onClose={() => setTicketParaImprimir(null)}
           venta={ticketParaImprimir}
+        />
+      )}
+      {ticketMaderaParaImprimir && (
+        <ImprimirTicketMaderaModal 
+          isOpen={!!ticketMaderaParaImprimir}
+          onClose={() => setTicketMaderaParaImprimir(null)}
+          venta={ticketMaderaParaImprimir}
         />
       )}
 

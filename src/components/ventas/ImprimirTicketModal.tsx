@@ -1,4 +1,5 @@
 // src/components/ventas/ImprimirTicketModal.tsx
+// Este componente es para imprimir tickets de productos o triplay/aglomerado
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -193,19 +194,30 @@ export const ImprimirTicketModal = ({ isOpen, onClose, venta }: ImprimirTicketMo
                 {/* Lista de Productos */}
                 <div className="text-[12px] space-y-2 mb-3">
                 {venta.detalles.map((detalle: any, idx: number) => {
-                    const desc = detalle.producto.descripcion;
-                    // Intenta extraer medidas si no están en la descripción
-                    const medidas = detalle.producto.atributos_madera 
-                        ? `${detalle.producto.atributos_madera.grosor_pulgadas}"x${detalle.producto.atributos_madera.ancho_pulgadas}"x${detalle.producto.atributos_madera.largo_pies}'` 
-                        : '';
-                    const displayDesc = desc.includes(medidas) || !medidas ? desc : `${desc} - ${medidas}`;
+                    let desc = detalle.producto.descripcion || '';
+
+                    if (detalle.producto.atributos_madera) {
+                        const { grosor_pulgadas: g, ancho_pulgadas: a, largo_pies: l } = detalle.producto.atributos_madera;
+                        const regex = new RegExp(`(?:\\b|(?<=\\s|^))${g}["']?\\s*[xX*]\\s*${a}["']?\\s*[xX*]\\s*${l}['"]?\\b`, 'i');
+                        desc = desc.replace(regex, '').replace(/\s*-\s*$/, '').trim();
+                    } else if (detalle.producto.atributos_triplay) {
+                        const { espesor_mm: e, ancho_ft: af, largo_ft: lf } = detalle.producto.atributos_triplay;
+                        const regex = new RegExp(`(?:\\b|(?<=\\s|^))${e}(?:mm)?\\s*[xX*]\\s*${af}['"ft]*\\s*[xX*]\\s*${lf}['"ft]*\\b`, 'i');
+                        desc = desc.replace(regex, '').replace(/\s*-\s*$/, '').trim();
+                    }
+
+                    const genero = detalle.genero || detalle.producto.atributos_madera?.genero || '';
 
                     return (
-                        <div key={idx} className="flex flex-col">
-                            {/* Nombre del producto ocupa toda la línea para no amontonarse */}
-                            <span className="font-medium uppercase leading-tight mb-1">{displayDesc}</span>
-                            <div className="flex justify-between text-[11px] text-gray-700">
-                                <span className="w-8">{detalle.cantidad_piezas || detalle.cantidad} x</span>
+                        <div key={idx} className="flex flex-col mb-1 pb-1 border-b border-gray-100 border-dashed">
+                            <span className="font-bold uppercase leading-tight mb-0.5">{desc}</span>
+                            {genero && (
+                                <div className="text-[9.5px] text-gray-600 mb-0.5 leading-tight flex flex-col">
+                                   <span>Género: <span className="font-medium text-gray-800 uppercase">{genero}</span></span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-[11px] text-gray-700 mt-0.5">
+                                <span className="w-8 font-medium">{detalle.cantidad_piezas || detalle.cantidad} x</span>
                                 <span className="flex-1 px-1">${Number(detalle.precio_unitario || detalle.precio_unitario_venta).toFixed(2)}</span>
                                 <span className="w-16 text-right font-bold text-black">${Number(detalle.importe_linea || detalle.importe || detalle.subtotal || 0).toFixed(2)}</span>
                             </div>

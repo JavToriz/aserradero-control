@@ -35,7 +35,14 @@ function getCookie(name: string) {
 
 // DEFINICIÓN DEL MENÚ CON SOPORTE PARA SUB-MENÚS
 const menuItems = [
-  { name: 'Productos', href: '/productos', icon: Package },
+  { 
+    name: 'Productos', 
+    icon: Package, 
+    submenu: [
+      { name: 'Productos (Triplay)', href: '/productos/triplay' },
+      { name: 'Madera Aserrada', href: '/productos/madera' },
+    ]
+  },
   { name: 'Precios', href: '/configuracion/precios', icon: CircleDollarSign },
   { name: 'Inventario / Madera', href: '/produccion', icon: Boxes },
   { name: 'Inventario / Productos', href: '/inventario-comercial', icon: Layers },
